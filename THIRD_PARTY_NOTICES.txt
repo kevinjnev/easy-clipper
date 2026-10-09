@@ -1,0 +1,25 @@
+Easy Clipper — third-party notices
+==================================
+
+Easy Clipper itself is licensed under the MIT License (see LICENSE).
+
+FFmpeg
+------
+The release zip includes ffmpeg.exe and ffprobe.exe, unmodified builds of FFmpeg 7.1.1
+("essentials" build by Gyan Doshi, https://www.gyan.dev/ffmpeg/builds/).
+
+This build is configured with --enable-gpl --enable-version3 and is therefore licensed under the
+GNU General Public License version 3 (see FFMPEG-LICENSE.txt). FFmpeg is a separate program that
+Easy Clipper runs as a command-line tool; it is not linked into Easy Clipper.
+
+Source code:
+  FFmpeg 7.1.1 ........ https://github.com/FFmpeg/FFmpeg/tree/n7.1.1
+  Build binaries ...... https://github.com/GyanD/codexffmpeg/releases/tag/7.1.1
+  Build configuration . shown by running: ffmpeg -version
+
+FFmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project.
+
+Other components
+----------------
+Easy Clipper is built with Tauri (MIT/Apache-2.0), Svelte (MIT) and Rust crates distributed under
+MIT and/or Apache-2.0 licenses. It uses the Microsoft Edge WebView2 runtime that ships with Windows.

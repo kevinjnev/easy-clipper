@@ -249,3 +249,25 @@ fn failed_export_reports_ffmpeg_error() {
     assert!(err.contains("missing.mp4"), "error should name the file: {err}");
     assert!(!dir.path().join("out.mp4").exists());
 }
+
+/// Frame counts must not drift as clips are added: 6 clips × 15 frames = 90 frames.
+#[test]
+fn many_cuts_keep_exact_frame_count() {
+    if !common::have_ffmpeg() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let a = common::make_clip(dir.path(), "a.mp4", 4.0, 320, 240, 30, true);
+    let mut clips = Vec::new();
+    for i in 0..6 {
+        clips.extend(pair("A", i as f64 * 0.5, i as f64 * 0.5, i as f64 * 0.5 + 0.5));
+    }
+    let p = project(320, 240, vec![media("A", &a, 4.0, 320, 240, true)], clips);
+    for enc in std::iter::once("libx264".to_string()).chain(detect_encoders()) {
+        let mut s = settings(Format::Mp4, &dir.path().join(format!("cuts-{enc}.mp4")));
+        s.encoder = enc.clone();
+        let out = export(&p, &s).unwrap();
+        let frames = common::probe_entry(&out, "v:0", "stream=nb_frames");
+        assert_eq!(frames, "90", "{enc}: expected 90 frames, got {frames}");
+    }
+}
