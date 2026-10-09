@@ -89,11 +89,11 @@
 <style>
   .app {
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr) 270px;
+    grid-template-rows: auto minmax(0, 1fr) 222px;
     height: 100vh;
   }
   .app.with-shortcuts {
-    grid-template-rows: auto minmax(0, 1fr) 270px auto;
+    grid-template-rows: auto minmax(0, 1fr) 222px auto;
   }
   main {
     display: grid;

@@ -31,7 +31,10 @@
   .shortcuts {
     background: var(--panel);
     border-top: 1px solid var(--border);
-    padding: 6px 12px 10px;
+    padding: 4px 12px 6px;
+    max-height: 150px;
+    overflow-y: auto;
+    font-size: 12px;
   }
   .head {
     display: flex;
@@ -48,10 +51,10 @@
   .grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 4px 20px;
+    gap: 0 20px;
   }
   h4 {
-    margin: 6px 0 4px;
+    margin: 2px 0 2px;
     color: var(--muted);
     font-weight: 600;
     font-size: 11px;
@@ -62,10 +65,13 @@
     display: flex;
     gap: 8px;
     align-items: baseline;
-    padding: 1px 0;
+    padding: 0;
+    line-height: 1.55;
   }
   .row kbd {
-    min-width: 64px;
+    font-size: 10px;
+    padding: 0 4px;
+    min-width: 58px;
     text-align: center;
   }
 </style>

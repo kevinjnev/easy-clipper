@@ -36,6 +36,8 @@ export class EditorStore {
   playing = $state(false);
   ripple = $state(true);
   pxPerSec = $state(80);
+  /** Time at the left edge of the timeline. */
+  scrollUs = $state(0);
   showShortcuts = $state(true);
   exportOpen = $state(false);
   projectPath = $state<string | null>(null);

@@ -38,7 +38,7 @@ export function appendMedia(p: Project, mediaId: string): Project {
 }
 
 /** Timeline points not strictly inside any clip, nearest to `atUs` (ties go earlier). */
-function nearestBoundary(p: Project, atUs: number): number {
+export function nearestBoundary(p: Project, atUs: number): number {
   const points = new Set<number>([0]);
   for (const c of p.clips) {
     points.add(c.startUs);

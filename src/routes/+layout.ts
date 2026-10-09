@@ -1,5 +1,9 @@
-// Tauri doesn't have a Node.js server to do proper SSR
-// so we use adapter-static with a fallback to index.html to put the site in SPA mode
-// See: https://svelte.dev/docs/kit/single-page-apps
-// See: https://v2.tauri.app/start/frontend/sveltekit/ for more info
+import { isTauri } from '@tauri-apps/api/core';
+
+// Tauri has no Node.js server, so the app runs as a single-page app.
 export const ssr = false;
+
+export async function load() {
+  // In a plain browser during development, fake the Rust side with sample media.
+  if (import.meta.env.DEV && !isTauri()) await (await import('$lib/devHarness')).install();
+}

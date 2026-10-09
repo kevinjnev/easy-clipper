@@ -1,5 +1,5 @@
 /** Typed wrappers around the Rust commands and native dialogs. */
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
@@ -83,7 +83,7 @@ export const onExportProgress = (cb: (fraction: number) => void): Promise<Unlist
   listen<{ fraction: number }>('export-progress', (e) => cb(e.payload.fraction));
 
 /** URL the webview can load a local file from. */
-export const fileUrl = (path: string) => convertFileSrc(path);
+export const fileUrl = (path: string) => (isTauri() ? convertFileSrc(path) : path);
 
 const MEDIA_EXTS = ['mp4', 'm4v', 'mov', 'mkv', 'webm', 'avi', 'wmv', 'flv', 'ts', 'mts', 'm2ts',
   'mp3', 'wav', 'm4a', 'aac', 'ogg', 'opus', 'flac', 'wma'];
