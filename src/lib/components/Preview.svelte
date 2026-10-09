@@ -4,12 +4,16 @@
   import { timelineEndUs, type Project, type TrackKind } from '../core/model';
   import { formatTimecode } from '../core/time';
   import { activeAt, needsSeek } from '../preview/schedule';
+  import { FIT, panBy, zoomAt, type ViewZoom } from '../preview/zoom';
   import { tooltip } from '../shortcuts';
   import { editor } from '../state/editor.svelte';
 
   let video: HTMLVideoElement;
   let audio: HTMLAudioElement;
   let showVideo = $state(false);
+  let screen: HTMLDivElement;
+  let vz = $state<ViewZoom>(FIT);
+  let panning = $state(false);
 
   const activeVideo = $derived(activeAt(editor.project, 'video', editor.playheadUs));
   const preparing = $derived(
@@ -89,12 +93,68 @@
     };
   }
 
-  onMount(() => syncAll(false));
+  /** Zoom by `factor` around a point given in client coordinates (default: the centre). */
+  function zoomBy(factor: number, clientX?: number, clientY?: number) {
+    const r = screen.getBoundingClientRect();
+    const cx = clientX === undefined ? 0 : clientX - r.left - r.width / 2;
+    const cy = clientY === undefined ? 0 : clientY - r.top - r.height / 2;
+    vz = zoomAt(vz, factor, cx, cy, r.width, r.height);
+  }
+
+  function onScreenWheel(e: WheelEvent) {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    zoomBy(e.deltaY < 0 ? 1.25 : 0.8, e.clientX, e.clientY);
+  }
+
+  // Ctrl+drag moves the zoomed-in frame.
+  function onScreenPointerDown(e: PointerEvent) {
+    if (e.button !== 0 || !e.ctrlKey || vz.zoom === 1) return;
+    e.preventDefault();
+    screen.setPointerCapture(e.pointerId);
+    panning = true;
+    let lx = e.clientX;
+    let ly = e.clientY;
+    const move = (ev: PointerEvent) => {
+      const r = screen.getBoundingClientRect();
+      vz = panBy(vz, ev.clientX - lx, ev.clientY - ly, r.width, r.height);
+      lx = ev.clientX;
+      ly = ev.clientY;
+    };
+    const up = () => {
+      panning = false;
+      screen.removeEventListener('pointermove', move);
+      screen.removeEventListener('pointerup', up);
+    };
+    screen.addEventListener('pointermove', move);
+    screen.addEventListener('pointerup', up);
+  }
+
+  onMount(() => {
+    syncAll(false);
+    screen.addEventListener('wheel', onScreenWheel, { passive: false });
+    return () => screen.removeEventListener('wheel', onScreenWheel);
+  });
 </script>
 
 <section class="preview">
-  <div class="screen">
-    <video bind:this={video} muted playsinline preload="auto" class:hidden={!showVideo}></video>
+  <div
+    class="screen"
+    bind:this={screen}
+    onpointerdown={onScreenPointerDown}
+    style:cursor={vz.zoom > 1 ? (panning ? 'grabbing' : 'grab') : 'default'}
+    title={vz.zoom > 1 ? 'Ctrl+drag to move, Ctrl+Scroll to zoom' : 'Ctrl+Scroll to zoom'}
+    role="img"
+    aria-label="Preview"
+  >
+    <video
+      bind:this={video}
+      muted
+      playsinline
+      preload="auto"
+      class:hidden={!showVideo}
+      style:transform="translate({vz.panX}px, {vz.panY}px) scale({vz.zoom})"
+    ></video>
     <audio bind:this={audio} preload="auto"></audio>
     {#if empty}
       <div class="placeholder">Import a clip to get started</div>
@@ -104,12 +164,20 @@
     {/if}
   </div>
   <div class="controls">
-    <button onclick={() => editor.runAction('home')} title={tooltip('home')}>⏮</button>
-    <button class="play" onclick={() => editor.runAction('playPause')} title={tooltip('playPause')} disabled={empty}>
-      {editor.playing ? '❚❚' : '▶'}
-    </button>
-    <button onclick={() => editor.runAction('end')} title={tooltip('end')}>⏭</button>
     <span class="tc">{formatTimecode(editor.playheadUs, editor.project.fps)}</span>
+    <div class="transport">
+      <button onclick={() => editor.runAction('home')} title={tooltip('home')}>⏮</button>
+      <button class="play" onclick={() => editor.runAction('playPause')} title={tooltip('playPause')} disabled={empty}>
+        {editor.playing ? '❚❚' : '▶'}
+      </button>
+      <button onclick={() => editor.runAction('end')} title={tooltip('end')}>⏭</button>
+    </div>
+    <div class="zoom">
+      <button onclick={() => zoomBy(0.8)} disabled={vz.zoom <= 1} title="Zoom out (Ctrl+Scroll on the preview)">−</button>
+      <span class="pct">{Math.round(vz.zoom * 100)}%</span>
+      <button onclick={() => zoomBy(1.25)} disabled={vz.zoom >= 8} title="Zoom in (Ctrl+Scroll on the preview)">+</button>
+      <button onclick={() => (vz = FIT)} disabled={vz.zoom === 1} title="Fit the frame">Fit</button>
+    </div>
   </div>
 </section>
 
@@ -136,6 +204,7 @@
     width: 100%;
     height: 100%;
     object-fit: contain;
+    transform-origin: center;
   }
   .hidden {
     visibility: hidden;
@@ -154,10 +223,28 @@
     border-radius: 4px;
   }
   .controls {
-    display: flex;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
     gap: 8px;
+  }
+  .transport,
+  .zoom {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .zoom {
+    justify-self: end;
+  }
+  .zoom button {
+    padding: 3px 8px;
+  }
+  .pct {
+    min-width: 40px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
   }
   .play {
     width: 44px;

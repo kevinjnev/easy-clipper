@@ -121,4 +121,25 @@ describe('EditorStore', () => {
     discardAnswer = false;
     expect(await fresh.confirmDiscard()).toBe(true);
   });
+
+  it('remembers whether the shortcuts panel is shown', () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+    });
+    const first = new EditorStore();
+    expect(first.showShortcuts).toBe(true);
+    first.runAction('toggleShortcuts');
+    expect(new EditorStore().showShortcuts).toBe(false);
+    vi.unstubAllGlobals();
+  });
+
+  it('delete leaves a gap instead of pulling later clips in', async () => {
+    await ed.importFiles(['C:/clips/b.mp4']);
+    ed.runAction('appendSelectedMedia');
+    ed.selectClips([trackClips(ed.project, 'video')[0].id]);
+    ed.runAction('delete');
+    expect(trackClips(ed.project, 'video').map((c) => c.startUs)).toEqual([10_000_000]);
+  });
 });

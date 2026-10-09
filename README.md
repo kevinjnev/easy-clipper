@@ -6,7 +6,9 @@ timeline, then export to MP4, GIF or audio. Think Clipchamp's basic editing, wit
 - **Portable** — unzip and run. No installer, no admin rights. ~8 MB app plus FFmpeg.
 - **Separate video and audio tracks** — linked by default, unlink with `Ctrl+L` to edit them independently.
 - **Frame-accurate trimming** — drag clip edges, or select an edge and nudge it one frame at a time with the arrow keys.
-- **Split, delete, reorder** — with ripple editing so gaps close automatically (toggleable).
+- **Split, delete, move** — clips go exactly where you drop them (gaps allowed); dropping onto another clip
+  inserts it at the nearest gap and pushes later clips along. Edges snap when dragged within a few frames.
+- **Preview zoom** — Ctrl+Scroll to zoom the preview, Ctrl+drag to look around.
 - **Export** — MP4 (H.264/AAC, GPU-accelerated on NVIDIA/AMD/Intel when available), GIF, MP3, WAV;
   Source / 1080p / 720p / 480p / custom resolution. Nothing is re-encoded until you export, and your
   original files are never modified.
@@ -25,7 +27,8 @@ Cache files and logs are kept in a `data` folder next to the exe (or `%LOCALAPPD
 1. **Import** media (button or drag files onto the window).
 2. Double-click a file in the media bin (or select it and press `Enter`) to add it to the end of the timeline,
    or drag it onto the timeline to insert it between clips.
-3. Trim by dragging clip edges, split with `S`, delete with `Delete`, drag clips to reorder.
+3. Trim by dragging clip edges, split with `S`, delete with `Delete`, drag clips to move them.
+   To link a video and an audio clip, click one, Ctrl+click the other and press `Ctrl+L`.
 4. **Export** (`Ctrl+E`) and choose a format and resolution.
 
 Projects save as `.clipproj` files. If media files have moved when you open a project, Easy Clipper asks
@@ -49,7 +52,9 @@ Press `?` in the app to show or hide the shortcuts panel.
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
 | `Ctrl+S` / `Ctrl+O` | Save / open project |
 | `Ctrl+E` | Export |
-| `Ctrl+Scroll` / `Scroll` | Zoom / pan the timeline |
+| `Ctrl+Scroll` | Zoom the timeline or the preview (whichever is under the cursor) |
+| `Scroll` | Scroll the timeline |
+| `Ctrl+drag` on the preview | Move around while zoomed in |
 | `Alt` while dragging | Disable snapping |
 
 ## Building from source

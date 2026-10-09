@@ -2,7 +2,7 @@
   import { SHORTCUT_HINTS, SHORTCUTS, type ShortcutGroup } from '../shortcuts';
   import { editor } from '../state/editor.svelte';
 
-  const GROUPS: ShortcutGroup[] = ['Playback', 'Editing', 'Trimming', 'Project'];
+  const GROUPS: ShortcutGroup[] = ['Playback', 'Editing', 'Trim & view', 'Project'];
   const rows = (g: ShortcutGroup) => [
     ...SHORTCUTS.filter((s) => s.group === g),
     ...SHORTCUT_HINTS.filter((s) => s.group === g),
@@ -31,9 +31,7 @@
   .shortcuts {
     background: var(--panel);
     border-top: 1px solid var(--border);
-    padding: 4px 12px 6px;
-    max-height: 150px;
-    overflow-y: auto;
+    padding: 2px 12px 6px;
     font-size: 12px;
   }
   .head {
@@ -44,14 +42,20 @@
   .hint {
     color: var(--muted);
     flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .close {
     padding: 2px 8px;
   }
   .grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0 20px;
+    grid-template-columns: repeat(4, max-content);
+    justify-content: space-between;
+    gap: 0 24px;
+    white-space: nowrap;
   }
   h4 {
     margin: 2px 0 2px;
@@ -66,10 +70,12 @@
     gap: 8px;
     align-items: baseline;
     padding: 0;
-    line-height: 1.55;
+    line-height: 18px;
+    height: 19px;
   }
   .row kbd {
     font-size: 10px;
+    line-height: 14px;
     padding: 0 4px;
     min-width: 58px;
     text-align: center;

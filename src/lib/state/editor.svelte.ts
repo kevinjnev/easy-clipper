@@ -12,6 +12,25 @@ export interface Selection {
   mediaId: string | null;
 }
 
+const SHORTCUTS_KEY = 'easyclipper.showShortcuts';
+
+/** Per-user UI preferences; storage can be unavailable, so failures fall back to defaults. */
+function readSetting(key: string, fallback: string): string {
+  try {
+    return globalThis.localStorage?.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeSetting(key: string, value: string) {
+  try {
+    globalThis.localStorage?.setItem(key, value);
+  } catch {
+    // Not remembered; harmless.
+  }
+}
+
 const basename = (path: string) => path.split(/[\\/]/).pop() ?? path;
 
 function toMediaItem(id: string, path: string, info: api.MediaInfo): MediaItem {
@@ -35,11 +54,17 @@ export class EditorStore {
   selection = $state<Selection>({ clipIds: [], edge: null, mediaId: null });
   playheadUs = $state(0);
   playing = $state(false);
-  ripple = $state(true);
   pxPerSec = $state(80);
   /** Time at the left edge of the timeline. */
   scrollUs = $state(0);
-  showShortcuts = $state(true);
+  private _showShortcuts = $state(readSetting(SHORTCUTS_KEY, 'true') === 'true');
+  get showShortcuts() {
+    return this._showShortcuts;
+  }
+  set showShortcuts(v: boolean) {
+    this._showShortcuts = v;
+    writeSetting(SHORTCUTS_KEY, String(v));
+  }
   exportOpen = $state(false);
   projectPath = $state<string | null>(null);
   dirty = $state(false);
@@ -162,7 +187,7 @@ export class EditorStore {
   private stepOrTrim(frames: number) {
     const edge = this.selection.edge;
     if (edge) {
-      this.apply((p) => trimEdge(p, edge.clipId, edge.side, frames * frameDurationUs(p.fps), this.ripple));
+      this.apply((p) => trimEdge(p, edge.clipId, edge.side, frames * frameDurationUs(p.fps)));
       return;
     }
     this.setPlayhead(stepFrames(this.playheadUs, frames, this.project.fps));
@@ -186,7 +211,7 @@ export class EditorStore {
       case 'split': this.apply((p) => splitAt(p, this.playheadUs, ids.length ? ids : null)); break;
       case 'delete':
         if (ids.length) {
-          this.apply((p) => deleteClips(p, ids, this.ripple));
+          this.apply((p) => deleteClips(p, ids));
           this.selectClips([]);
         }
         break;

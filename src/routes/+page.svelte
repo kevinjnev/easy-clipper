@@ -101,6 +101,7 @@
 <style>
   .app {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr) 222px;
     height: 100vh;
   }

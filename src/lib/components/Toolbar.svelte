@@ -26,11 +26,6 @@
     <button onclick={() => editor.runAction('split')} disabled={!hasClips} title={tooltip('split')}>Split</button>
     <button onclick={() => editor.runAction('delete')} disabled={!hasSelection} title={tooltip('delete')}>Delete</button>
     <button onclick={() => editor.runAction('toggleLink')} disabled={!hasSelection} title={tooltip('toggleLink')}>Link / Unlink</button>
-    <button
-      class:on={editor.ripple}
-      onclick={() => (editor.ripple = !editor.ripple)}
-      title="Ripple: when on, trimming or deleting closes gaps by moving later clips"
-    >Ripple {editor.ripple ? 'on' : 'off'}</button>
   </div>
   <div class="spacer"></div>
   <div class="group">

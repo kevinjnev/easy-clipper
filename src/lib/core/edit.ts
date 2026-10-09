@@ -1,6 +1,7 @@
 /**
  * Pure edit operations. Every function returns a new Project and leaves its input untouched.
  * Clips on a track never overlap; operations on a linked clip apply to its partner too.
+ * Nothing moves other clips except dropping onto an occupied spot, which inserts and pushes.
  */
 import { clipEnd, clipLen, mediaOf, partnerOf, timelineEndUs, trackClips, type Clip, type MediaItem, type Project } from './model';
 import { frameDurationUs, frameToUs, snapToFrame, stepFrames, usToFrame } from './time';
@@ -20,7 +21,7 @@ export function addMedia(p: Project, m: MediaItem): Project {
 }
 
 /** Clips for a media item starting at 0: a linked video+audio pair, or a single clip. */
-function clipsForMedia(p: Project, mediaId: string): Clip[] {
+export function clipsForMedia(p: Project, mediaId: string): Clip[] {
   const m = p.media.find((x) => x.id === mediaId);
   if (!m || m.error) return [];
   const outUs = frameToUs(Math.floor((m.durationUs * p.fps.num) / (1e6 * p.fps.den)), p.fps);
@@ -52,21 +53,66 @@ export function nearestBoundary(p: Project, atUs: number): number {
   return best;
 }
 
+export type Placement = { kind: 'free'; startUs: number } | { kind: 'insert'; atUs: number };
+
 /**
- * Inserts clips (positioned relative to 0) at the boundary nearest `atUs`.
- * Later clips on both tracks shift right to make room, regardless of the ripple setting.
+ * Where a group of clips (keeping their offsets from each other) lands when dropped with its
+ * earliest clip at `targetStartUs`: exactly there if every clip fits on its track, otherwise
+ * inserted at the clip boundary nearest the drop point. Clips in the group are ignored as obstacles.
  */
-function insertClips(p: Project, clips: Clip[], atUs: number): Project {
-  if (clips.length === 0) return p;
-  const at = nearestBoundary(p, atUs);
-  const len = Math.max(...clips.map(clipLen));
-  const shifted = p.clips.map((c) => (c.startUs >= at ? { ...c, startUs: c.startUs + len } : c));
-  return { ...p, clips: [...shifted, ...clips.map((c) => ({ ...c, startUs: at }))] };
+export function dropPlacement(p: Project, group: Clip[], targetStartUs: number): Placement {
+  const ids = new Set(group.map((c) => c.id));
+  const others = p.clips.filter((c) => !ids.has(c.id));
+  const groupStart = Math.min(...group.map((c) => c.startUs));
+  const start = Math.max(0, targetStartUs);
+  const fits = group.every((c) => {
+    const s = start + (c.startUs - groupStart);
+    const e = s + clipLen(c);
+    return !others.some((o) => o.track === c.track && o.startUs < e && clipEnd(o) > s);
+  });
+  if (fits) return { kind: 'free', startUs: start };
+  return { kind: 'insert', atUs: nearestBoundary({ ...p, clips: others }, start) };
 }
 
-/** Inserts the media at the clip boundary nearest `atUs`. */
-export function insertMedia(p: Project, mediaId: string, atUs: number): Project {
-  return insertClips(p, clipsForMedia(p, mediaId), atUs);
+/** Puts the group at its placement; an insert pushes every later clip right by the group's length. */
+function applyPlacement(p: Project, group: Clip[], placement: Placement): Project {
+  const ids = new Set(group.map((c) => c.id));
+  let others = p.clips.filter((c) => !ids.has(c.id));
+  const groupStart = Math.min(...group.map((c) => c.startUs));
+  const groupEnd = Math.max(...group.map(clipEnd));
+  let start: number;
+  if (placement.kind === 'free') {
+    start = placement.startUs;
+  } else {
+    start = placement.atUs;
+    const len = groupEnd - groupStart;
+    others = others.map((c) => (c.startUs >= start ? { ...c, startUs: c.startUs + len } : c));
+  }
+  return { ...p, clips: [...others, ...group.map((c) => ({ ...c, startUs: start + (c.startUs - groupStart) }))] };
+}
+
+/** Adds media with its first clip starting at `atUs` (or inserted at the nearest gap if that spot is taken). */
+export function dropMedia(p: Project, mediaId: string, atUs: number): Project {
+  const group = clipsForMedia(p, mediaId);
+  if (group.length === 0) return p;
+  return applyPlacement(p, group, dropPlacement(p, group, atUs));
+}
+
+/** A clip and its linked partner. */
+export function groupOf(p: Project, clipId: string): Clip[] {
+  const clip = p.clips.find((c) => c.id === clipId);
+  if (!clip) return [];
+  const partner = partnerOf(p, clip);
+  return partner ? [clip, partner] : [clip];
+}
+
+/** Moves a clip (and its partner, keeping their offset) so the clip starts at `targetUs`. */
+export function moveClip(p: Project, clipId: string, targetUs: number): Project {
+  const group = groupOf(p, clipId);
+  if (group.length === 0) return p;
+  const groupStart = Math.min(...group.map((c) => c.startUs));
+  const target = targetUs - (group[0].startUs - groupStart);
+  return applyPlacement(p, group, dropPlacement(p, group, target));
 }
 
 /** The ids plus each one's linked partner. */
@@ -93,59 +139,53 @@ function prevEnd(p: Project, c: Clip): number {
     .reduce((end, o) => Math.max(end, clipEnd(o)), 0);
 }
 
-/** Shifts clips (not in `exclude`) whose start is at or after `fromUs`. */
-function shiftLater(clips: Clip[], fromUs: number, byUs: number, exclude: Set<string>): Clip[] {
-  if (byUs === 0) return clips;
-  return clips.map((c) => (!exclude.has(c.id) && c.startUs >= fromUs ? { ...c, startUs: c.startUs + byUs } : c));
-}
-
 /**
- * Moves a clip edge by `deltaUs` (snapped to whole project frames).
- * Clamped so the clip stays within its source, is at least one frame long, and — without ripple —
- * doesn't overlap its neighbours or start before 0.
- * Left edge: ripple off moves the clip start with it; ripple on keeps the start and shifts later clips.
- * Right edge: ripple on shifts later clips (on both tracks) by the same amount.
+ * Moves a clip edge by `deltaUs` (snapped to whole project frames), for the clip and its partner.
+ * Clamped so each clip stays within its source, is at least one frame long, doesn't overlap its
+ * neighbours and doesn't start before 0. Moving the left edge moves the clip's start with it.
  */
-export function trimEdge(p: Project, clipId: string, edge: 'left' | 'right', deltaUs: number, ripple: boolean): Project {
-  const clip = p.clips.find((c) => c.id === clipId);
-  if (!clip) return p;
-  const group = [clip, partnerOf(p, clip)].filter((c): c is Clip => !!c);
+export function trimEdge(p: Project, clipId: string, edge: 'left' | 'right', deltaUs: number): Project {
+  const group = groupOf(p, clipId);
+  if (group.length === 0) return p;
+  const clip = group[0];
   const frame = frameDurationUs(p.fps);
-  const steps = usToFrame(deltaUs, p.fps);
-
   const edgeUs = edge === 'left' ? clip.inUs : clip.outUs;
-  let d = stepFrames(edgeUs, steps, p.fps) - edgeUs;
+  let d = stepFrames(edgeUs, usToFrame(deltaUs, p.fps), p.fps) - edgeUs;
   let lo = -Infinity;
   let hi = Infinity;
   for (const c of group) {
     if (edge === 'right') {
       lo = Math.max(lo, c.inUs + frame - c.outUs);
-      hi = Math.min(hi, mediaOf(p, c).durationUs - c.outUs);
-      if (!ripple) hi = Math.min(hi, nextStart(p, c) - clipEnd(c));
+      hi = Math.min(hi, mediaOf(p, c).durationUs - c.outUs, nextStart(p, c) - clipEnd(c));
     } else {
-      lo = Math.max(lo, -c.inUs);
-      if (!ripple) lo = Math.max(lo, prevEnd(p, c) - c.startUs);
+      lo = Math.max(lo, -c.inUs, prevEnd(p, c) - c.startUs);
       hi = Math.min(hi, c.outUs - frame - c.inUs);
     }
   }
   if (lo > hi) return p;
   d = Math.min(hi, Math.max(lo, d));
   if (d === 0) return p;
-
   const ids = new Set(group.map((c) => c.id));
-  const oldEnd = clipEnd(clip);
-  let clips = p.clips.map((c) => {
-    if (!ids.has(c.id)) return c;
-    if (edge === 'right') return { ...c, outUs: c.outUs + d };
-    return { ...c, inUs: c.inUs + d, startUs: ripple ? c.startUs : c.startUs + d };
-  });
-  if (ripple) clips = shiftLater(clips, oldEnd, edge === 'right' ? d : -d, ids);
-  return { ...p, clips };
+  return {
+    ...p,
+    clips: p.clips.map((c) => {
+      if (!ids.has(c.id)) return c;
+      if (edge === 'right') return { ...c, outUs: c.outUs + d };
+      return { ...c, inUs: c.inUs + d, startUs: c.startUs + d };
+    }),
+  };
+}
+
+/** Removes link ids that don't join exactly two clips. */
+function tidyLinks(clips: Clip[]): Clip[] {
+  const counts = new Map<string, number>();
+  for (const c of clips) if (c.linkId) counts.set(c.linkId, (counts.get(c.linkId) ?? 0) + 1);
+  return clips.map((c) => (c.linkId && counts.get(c.linkId) !== 2 ? { ...c, linkId: undefined } : c));
 }
 
 /**
  * Splits clips at `atUs` (snapped to a frame). With `clipIds` null, splits every clip under the point.
- * Left halves keep their link; right halves of a linked pair share a new link.
+ * Left halves keep their link; right halves of a pair that were both split share a new link.
  */
 export function splitAt(p: Project, atUs: number, clipIds: string[] | null): Project {
   const at = snapToFrame(atUs, p.fps);
@@ -167,41 +207,18 @@ export function splitAt(p: Project, atUs: number, clipIds: string[] | null): Pro
     clips.push({ ...c, outUs: cut });
     clips.push({ ...c, id: newId(), startUs: at, inUs: cut, linkId });
   }
-  return { ...p, clips };
+  return { ...p, clips: tidyLinks(clips) };
 }
 
-/**
- * Removes clips and their partners. With ripple, each removed span is closed up — but only when
- * no remaining clip on either track still overlaps it.
- */
-export function deleteClips(p: Project, clipIds: string[], ripple: boolean): Project {
+/** Removes clips and their partners, leaving a gap. */
+export function deleteClips(p: Project, clipIds: string[]): Project {
   const ids = withPartners(p, clipIds);
-  const removed = p.clips.filter((c) => ids.has(c.id));
-  let clips = p.clips.filter((c) => !ids.has(c.id));
-  if (!ripple) return { ...p, clips };
-
-  const spans = new Map<string, [number, number]>();
-  for (const c of removed) spans.set(`${c.startUs}:${clipEnd(c)}`, [c.startUs, clipEnd(c)]);
-  const ordered = [...spans.values()].sort((a, b) => b[0] - a[0]);
-  for (const [start, end] of ordered) {
-    const covered = clips.some((c) => c.startUs < end && clipEnd(c) > start);
-    if (!covered) clips = shiftLater(clips, end, -(end - start), new Set());
-  }
-  return { ...p, clips };
-}
-
-/** Moves a clip (and its partner) to the clip boundary nearest `targetUs`, closing the gap it leaves. */
-export function moveClip(p: Project, clipId: string, targetUs: number): Project {
-  const clip = p.clips.find((c) => c.id === clipId);
-  if (!clip) return p;
-  const group = [clip, partnerOf(p, clip)].filter((c): c is Clip => !!c);
-  const without = deleteClips(p, [clipId], true);
-  return insertClips(without, group.map((c) => ({ ...c, startUs: 0 })), targetUs);
+  return { ...p, clips: p.clips.filter((c) => !ids.has(c.id)) };
 }
 
 /**
- * A selected linked pair is unlinked; exactly one video and one audio clip with the same start
- * and length are linked. Anything else is left unchanged.
+ * Selecting one linked clip or its pair unlinks it. Selecting one video and one audio clip links
+ * them wherever they are (dropping any links they had before). Anything else is left unchanged.
  */
 export function toggleLink(p: Project, clipIds: string[]): Project {
   const sel = p.clips.filter((c) => clipIds.includes(c.id));
@@ -214,10 +231,9 @@ export function toggleLink(p: Project, clipIds: string[]): Project {
   if (sel.length !== 2) return p;
   const video = sel.find((c) => c.track === 'video');
   const audio = sel.find((c) => c.track === 'audio');
-  if (!video || !audio || video.startUs !== audio.startUs || clipLen(video) !== clipLen(audio)) return p;
+  if (!video || !audio) return p;
   const linkId = newId();
-  return {
-    ...p,
-    clips: p.clips.map((c) => (c.id === video.id || c.id === audio.id ? { ...c, linkId } : c)),
-  };
+  const ids = new Set([video.id, audio.id]);
+  const clips = p.clips.map((c) => (ids.has(c.id) ? { ...c, linkId } : c));
+  return { ...p, clips: tidyLinks(clips) };
 }

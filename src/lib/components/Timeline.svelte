@@ -1,21 +1,21 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { fileUrl } from '../api';
-  import { insertMedia, moveClip, nearestBoundary, trimEdge } from '../core/edit';
-  import { clipEnd, partnerOf, timelineEndUs } from '../core/model';
-  import { snapTargets, snapValue } from '../core/snap';
+  import { clipsForMedia, dropMedia, dropPlacement, groupOf, moveClip, trimEdge, type Placement } from '../core/edit';
+  import { clipEnd, clipLen, timelineEndUs, type Clip } from '../core/model';
+  import { snapSpan, snapTargets, snapThresholdUs, snapValue } from '../core/snap';
   import { formatTimecode } from '../core/time';
   import { editor } from '../state/editor.svelte';
   import { drawTimeline, type DrawState } from '../timeline/draw';
   import { hitTest, RULER_H, trackTop, TRACK_H, usToX, xToUs, type Hit, type View } from '../timeline/geometry';
 
-  const SNAP_PX = 8;
   const DRAG_PX = 4;
   const MIN_PX_PER_SEC = 2;
   const MAX_PX_PER_SEC = 2000;
 
   let wrap: HTMLDivElement;
   let canvas: HTMLCanvasElement;
+  let scroller: HTMLDivElement;
   let width = $state(800);
   let height = $state(180);
   let hoverEdge = $state<DrawState['hoverEdge']>(null);
@@ -27,6 +27,9 @@
 
   const view = $derived<View>({ pxPerSec: editor.pxPerSec, scrollUs: editor.scrollUs });
   const endUs = $derived(timelineEndUs(editor.project));
+  /** Scrollable length: the clips plus half a screen of room to drop things after them. */
+  const contentUs = $derived(Math.max(endUs + ((width / 2) * 1e6) / editor.pxPerSec, (width * 1e6) / editor.pxPerSec));
+  const contentPx = $derived((contentUs / 1e6) * editor.pxPerSec);
 
   // Load thumbnail sprites as they become available.
   $effect(() => {
@@ -53,17 +56,26 @@
     const ctx = canvas?.getContext('2d');
     if (!ctx) return;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
+    const w = Math.round(width * dpr);
+    const h = Math.round(height * dpr);
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawTimeline(ctx, width, height, editor.project, view, state, images, editor.waves);
+  });
+
+  // Keep the scroll bar in step with scrolling done any other way (wheel, zoom, playback).
+  $effect(() => {
+    const left = (editor.scrollUs / 1e6) * editor.pxPerSec;
+    void contentPx;
+    if (scroller && Math.abs(scroller.scrollLeft - left) > 1) scroller.scrollLeft = left;
   });
 
   // Keep the playhead visible while playing.
   $effect(() => {
     if (!editor.playing) return;
     const x = usToX(editor.playheadUs, view);
-    if (x > width - 40 || x < 0) editor.scrollUs = Math.max(0, editor.playheadUs - (width * 0.1 * 1e6) / editor.pxPerSec);
+    if (x > width - 40 || x < 0) setScroll(editor.playheadUs - (width * 0.1 * 1e6) / editor.pxPerSec);
   });
 
   // Zoom to fit when the first clips arrive.
@@ -73,6 +85,11 @@
     if (has && !hadClips) fit();
     hadClips = has;
   });
+
+  function setScroll(us: number) {
+    const max = Math.max(0, contentUs - (width * 1e6) / editor.pxPerSec);
+    editor.scrollUs = Math.min(max, Math.max(0, us));
+  }
 
   function fit() {
     const end = timelineEndUs(editor.project);
@@ -90,7 +107,11 @@
 
   function local(e: { clientX: number; clientY: number }) {
     const r = canvas.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top, inside: e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom };
+    return {
+      x: e.clientX - r.left,
+      y: e.clientY - r.top,
+      inside: e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom,
+    };
   }
 
   function onWheel(e: WheelEvent) {
@@ -98,9 +119,13 @@
     if (e.ctrlKey) {
       zoom(e.deltaY < 0 ? 1.25 : 0.8, local(e).x);
     } else {
-      const delta = (e.deltaY !== 0 ? e.deltaY : e.deltaX) / editor.pxPerSec * 1e6;
-      editor.scrollUs = Math.max(0, editor.scrollUs + delta);
+      const delta = ((e.deltaY !== 0 ? e.deltaY : e.deltaX) / editor.pxPerSec) * 1e6;
+      setScroll(editor.scrollUs + delta);
     }
+  }
+
+  function onScrollbar() {
+    editor.scrollUs = (scroller.scrollLeft / editor.pxPerSec) * 1e6;
   }
 
   function cursorFor(hit: Hit) {
@@ -129,15 +154,14 @@
     window.addEventListener('pointerup', up);
   }
 
-  function snapUs(us: number, excludeIds: string[], e: PointerEvent) {
-    if (e.altKey) return us;
-    return snapValue(us, snapTargets(editor.project, editor.playheadUs, excludeIds), (SNAP_PX / editor.pxPerSec) * 1e6);
-  }
+  const threshold = () => snapThresholdUs(editor.pxPerSec, editor.project.fps);
+  const targets = (excludeIds: string[]) => snapTargets(editor.project, editor.playheadUs, excludeIds);
 
-  function groupIds(clipId: string) {
-    const c = editor.project.clips.find((x) => x.id === clipId);
-    const partner = c && partnerOf(editor.project, c);
-    return [clipId, ...(partner ? [partner.id] : [])];
+  /** Where a dragged group starting at `startUs` would land; shows the insert marker if it would push clips. */
+  function preview(group: Clip[], groupStartUs: number): Placement {
+    const placement = dropPlacement(editor.project, group, groupStartUs);
+    dropX = placement.kind === 'insert' ? usToX(placement.atUs, view) : null;
+    return placement;
   }
 
   function onPointerDown(e: PointerEvent) {
@@ -155,13 +179,14 @@
     if (hit.kind === 'edge') {
       editor.selectClips([hit.clipId], { clipId: hit.clipId, side: hit.side });
       const clip = editor.project.clips.find((c) => c.id === hit.clipId)!;
-      const exclude = groupIds(hit.clipId);
+      const exclude = groupOf(editor.project, hit.clipId).map((c) => c.id);
       const origUs = hit.side === 'right' ? clipEnd(clip) : clip.startUs;
       editor.beginGesture();
       drag(
         (ev, dx) => {
-          const target = snapUs(origUs + (dx / editor.pxPerSec) * 1e6, exclude, ev);
-          editor.updateGesture((p) => trimEdge(p, hit.clipId, hit.side, target - origUs, editor.ripple));
+          let target = origUs + (dx / editor.pxPerSec) * 1e6;
+          if (!ev.altKey) target = snapValue(target, targets(exclude), threshold());
+          editor.updateGesture((p) => trimEdge(p, hit.clipId, hit.side, target - origUs));
         },
         () => editor.endGesture(),
         x,
@@ -169,27 +194,33 @@
       return;
     }
 
-    // Clip body: select, then drag to reorder.
+    // Clip body: select, then drag to move. Nothing changes until the drop.
     const ids = editor.selection.clipIds;
     if (e.ctrlKey) {
       editor.selectClips(ids.includes(hit.clipId) ? ids.filter((i) => i !== hit.clipId) : [...ids, hit.clipId]);
       return;
     }
-    editor.selectClips(groupIds(hit.clipId));
-    const clip = editor.project.clips.find((c) => c.id === hit.clipId)!;
-    const exclude = groupIds(hit.clipId);
+    const group = groupOf(editor.project, hit.clipId);
+    editor.selectClips(group.map((c) => c.id));
+    const clip = group[0];
+    const groupStart = Math.min(...group.map((c) => c.startUs));
+    const groupEnd = Math.max(...group.map(clipEnd));
     let moving = false;
+    let newStart = clip.startUs;
     drag(
       (ev, dx) => {
         if (!moving && Math.abs(dx) < DRAG_PX) return;
         moving = true;
         cursor = 'grabbing';
-        const newStart = snapUs(clip.startUs + (dx / editor.pxPerSec) * 1e6, exclude, ev);
-        ghost = { clipIds: exclude, offsetUs: newStart - clip.startUs };
-        dropX = usToX(nearestBoundary(editor.project, xToUs(local(ev).x, view)), view);
+        const shift = (dx / editor.pxPerSec) * 1e6;
+        let gs = Math.max(0, groupStart + shift);
+        if (!ev.altKey) gs = snapSpan(gs, groupEnd - groupStart, targets(group.map((c) => c.id)), threshold());
+        newStart = gs + (clip.startUs - groupStart);
+        ghost = { clipIds: group.map((c) => c.id), offsetUs: newStart - clip.startUs };
+        preview(group, gs);
       },
-      (ev) => {
-        if (moving) editor.apply((p) => moveClip(p, hit.clipId, xToUs(local(ev).x, view)));
+      () => {
+        if (moving) editor.apply((p) => moveClip(p, hit.clipId, newStart));
         ghost = null;
         dropX = null;
         cursor = 'grab';
@@ -198,19 +229,32 @@
     );
   }
 
-  // Media dragged from the bin.
-  function onWindowPointerMove(e: PointerEvent) {
-    if (!editor.mediaDrag) return;
-    const { x, inside } = local(e);
-    dropX = inside ? usToX(nearestBoundary(editor.project, xToUs(x, view)), view) : null;
-  }
+  // Media dragged from the bin: show where it would land; add it only on drop.
+  let mediaDropStart: number | null = null;
 
-  function onWindowPointerUp(e: PointerEvent) {
+  function onWindowPointerMove(e: PointerEvent) {
     const drag = editor.mediaDrag;
     if (!drag) return;
-    dropX = null;
     const { x, inside } = local(e);
-    if (inside) editor.apply((p) => insertMedia(p, drag.mediaId, xToUs(x, view)));
+    const group = clipsForMedia(editor.project, drag.mediaId);
+    if (!inside || group.length === 0) {
+      dropX = null;
+      mediaDropStart = null;
+      return;
+    }
+    let start = Math.max(0, xToUs(x, view));
+    if (!e.altKey) start = snapSpan(start, Math.max(...group.map(clipLen)), targets([]), threshold());
+    mediaDropStart = start;
+    const placement = preview(group, start);
+    if (placement.kind === 'free') dropX = usToX(start, view);
+  }
+
+  function onWindowPointerUp() {
+    const drag = editor.mediaDrag;
+    const start = mediaDropStart;
+    dropX = null;
+    mediaDropStart = null;
+    if (drag && start !== null) editor.apply((p) => dropMedia(p, drag.mediaId, start));
   }
 
   onMount(() => {
@@ -244,19 +288,24 @@
       <div class="lab" style:top="{trackTop('audio')}px" style:height="{TRACK_H}px">Audio</div>
       <div class="lab ruler" style:height="{RULER_H}px"></div>
     </div>
-    <div class="canvas-wrap" bind:this={wrap}>
-      <canvas
-        bind:this={canvas}
-        style:width="{width}px"
-        style:height="{height}px"
-        style:cursor
-        onpointerdown={onPointerDown}
-        onpointermove={onHover}
-        onpointerleave={() => (hoverEdge = null)}
-      ></canvas>
-      {#if editor.project.clips.length === 0}
-        <div class="hint">Drag media here from the bin, or select it and press <kbd>Enter</kbd></div>
-      {/if}
+    <div class="lanes">
+      <div class="canvas-wrap" bind:this={wrap}>
+        <canvas
+          bind:this={canvas}
+          style:width="{width}px"
+          style:height="{height}px"
+          style:cursor
+          onpointerdown={onPointerDown}
+          onpointermove={onHover}
+          onpointerleave={() => (hoverEdge = null)}
+        ></canvas>
+        {#if editor.project.clips.length === 0}
+          <div class="hint">Drag media here from the bin, or select it and press <kbd>Enter</kbd></div>
+        {/if}
+      </div>
+      <div class="hscroll" bind:this={scroller} onscroll={onScrollbar}>
+        <div style:width="{contentPx}px"></div>
+      </div>
     </div>
   </div>
 </section>
@@ -315,15 +364,45 @@
     top: 0;
     background: var(--panel);
   }
+  .lanes {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
   .canvas-wrap {
     position: relative;
     flex: 1;
-    min-width: 0;
+    min-height: 0;
     overflow: hidden;
   }
+  /* Absolutely positioned so the canvas never props the layout open when the window shrinks. */
   canvas {
+    position: absolute;
+    inset: 0;
     display: block;
     touch-action: none;
+  }
+  .hscroll {
+    flex: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 14px;
+    background: var(--panel);
+  }
+  .hscroll > div {
+    height: 1px;
+  }
+  .hscroll::-webkit-scrollbar {
+    height: 12px;
+  }
+  .hscroll::-webkit-scrollbar-thumb {
+    background: #4a4e5a;
+    border-radius: 6px;
+    border: 2px solid var(--panel);
+  }
+  .hscroll::-webkit-scrollbar-thumb:hover {
+    background: #5d6272;
   }
   .hint {
     position: absolute;
