@@ -1,5 +1,6 @@
 <script lang="ts">
   import { getCurrentWebview } from '@tauri-apps/api/webview';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
   import { onMount } from 'svelte';
   import { errorMessage, ffmpegStatus } from '$lib/api';
   import ExportDialog from '$lib/components/ExportDialog.svelte';
@@ -41,7 +42,16 @@
         }
       })
       .then((u) => (unlisten = u));
-    return () => unlisten?.();
+    let unlistenClose: (() => void) | undefined;
+    getCurrentWindow()
+      .onCloseRequested(async (e) => {
+        if (!(await editor.confirmDiscard())) e.preventDefault();
+      })
+      .then((u) => (unlistenClose = u));
+    return () => {
+      unlisten?.();
+      unlistenClose?.();
+    };
   });
 </script>
 

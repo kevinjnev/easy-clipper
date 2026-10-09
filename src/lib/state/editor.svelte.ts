@@ -239,7 +239,14 @@ export class EditorStore {
     for (const m of p.media) if (!m.error) void this.loadMediaExtras(m);
   }
 
+  /** True when it's fine to throw away the current project (nothing unsaved, or the user agreed). */
+  async confirmDiscard(): Promise<boolean> {
+    if (!this.dirty) return true;
+    return api.askDiscardChanges();
+  }
+
   async open() {
+    if (!(await this.confirmDiscard())) return;
     const path = await api.pickProjectToOpen();
     if (!path) return;
     try {

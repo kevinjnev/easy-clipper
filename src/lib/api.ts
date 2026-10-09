@@ -1,7 +1,7 @@
 /** Typed wrappers around the Rust commands and native dialogs. */
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { open, save } from '@tauri-apps/plugin-dialog';
+import { ask, open, save } from '@tauri-apps/plugin-dialog';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 
 export interface MediaInfo {
@@ -109,4 +109,8 @@ export async function pickExportPath(ext: string): Promise<string | null> {
 export async function pickReplacementFile(name: string): Promise<string | null> {
   const res = await open({ multiple: false, title: `Locate ${name}`, filters: [{ name: 'Media', extensions: MEDIA_EXTS }] });
   return typeof res === 'string' ? res : null;
+}
+
+export function askDiscardChanges(): Promise<boolean> {
+  return ask('You have unsaved changes. Discard them?', { title: 'Easy Clipper', kind: 'warning', okLabel: 'Discard', cancelLabel: 'Cancel' });
 }

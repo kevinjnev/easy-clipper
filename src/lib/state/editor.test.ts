@@ -16,7 +16,10 @@ vi.mock('../api', async (importOriginal) => ({
   readText: vi.fn(async () => projectJson),
   pathExists: vi.fn(async (path: string) => path.startsWith('D:/moved/')),
   pickReplacementFile: vi.fn(async () => 'D:/moved/a.mp4'),
+  askDiscardChanges: vi.fn(async () => discardAnswer),
 }));
+
+let discardAnswer = false;
 
 let projectJson = '';
 
@@ -98,5 +101,24 @@ describe('EditorStore', () => {
     expect(fresh.project.media.map((m) => m.path)).toEqual(['D:/moved/a.mp4', 'D:/moved/b.mp4']);
     expect(fresh.projectPath).toBe('C:/projects/p.clipproj');
     expect(fresh.canUndo).toBe(false);
+  });
+
+  it('asks before discarding unsaved changes, and keeps them if the user says no', async () => {
+    expect(ed.dirty).toBe(true);
+    discardAnswer = false;
+    expect(await ed.confirmDiscard()).toBe(false);
+    const clipsBefore = ed.project.clips.length;
+    projectJson = serializeProject({ ...ed.project, clips: [] });
+    await ed.open();
+    expect(ed.project.clips).toHaveLength(clipsBefore);
+    discardAnswer = true;
+    await ed.open();
+    expect(ed.project.clips).toHaveLength(0);
+  });
+
+  it('does not ask when there is nothing unsaved', async () => {
+    const fresh = new EditorStore();
+    discardAnswer = false;
+    expect(await fresh.confirmDiscard()).toBe(true);
   });
 });
