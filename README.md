@@ -7,8 +7,11 @@ timeline, then export to MP4, GIF or audio. Think Clipchamp's basic editing, wit
 - **Separate video and audio tracks** — linked by default, unlink with `Ctrl+L` to edit them independently.
 - **Frame-accurate trimming** — drag clip edges, or select an edge and nudge it one frame at a time with the arrow keys.
 - **Split, delete, move** — clips go exactly where you drop them (gaps allowed); dropping onto another clip
-  inserts it at the nearest gap and pushes later clips along. Edges snap when dragged within a few frames.
+  goes to the nearest gap on that track and pushes only the clips in the way (gaps absorb the push).
+  Edges snap when dragged within a few frames.
 - **Preview zoom** — Ctrl+Scroll to zoom the preview, Ctrl+drag to look around.
+- **Smooth preview** — playback follows the video itself; very large, high-frame-rate or high-bitrate
+  files automatically get a light 720p preview copy (exports still use the originals).
 - **Export** — MP4 (H.264/AAC, GPU-accelerated on NVIDIA/AMD/Intel when available), GIF, MP3, WAV;
   Source / 1080p / 720p / 480p / custom resolution. Nothing is re-encoded until you export, and your
   original files are never modified.
@@ -29,6 +32,7 @@ Cache files and logs are kept in a `data` folder next to the exe (or `%LOCALAPPD
    or drag it onto the timeline to insert it between clips.
 3. Trim by dragging clip edges, split with `S`, delete with `Delete`, drag clips to move them.
    To link a video and an audio clip, click one, Ctrl+click the other and press `Ctrl+L`.
+   Right-click a clip for Split here / Split at playhead / Delete / Link or Unlink.
 4. **Export** (`Ctrl+E`) and choose a format and resolution.
 
 Projects save as `.clipproj` files. If media files have moved when you open a project, Easy Clipper asks

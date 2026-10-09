@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { fileUrl } from '../api';
-  import { timelineEndUs, type Project, type TrackKind } from '../core/model';
+  import { clipEnd, timelineEndUs } from '../core/model';
   import { formatTimecode } from '../core/time';
-  import { activeAt, needsSeek } from '../preview/schedule';
+  import { activeAt, advancePlayhead, AUDIO_DRIFT_US, needsSeek, PAUSED_SEEK_US, VIDEO_RESEEK_US } from '../preview/schedule';
   import { FIT, panBy, zoomAt, type ViewZoom } from '../preview/zoom';
   import { tooltip } from '../shortcuts';
   import { editor } from '../state/editor.svelte';
@@ -21,11 +21,16 @@
   );
   const empty = $derived(editor.project.clips.length === 0);
 
-  /** Points a player at the clip under the playhead and keeps it in step with the timeline clock. */
-  function sync(el: HTMLMediaElement, p: Project, track: TrackKind, us: number, playing: boolean): boolean {
-    const hit = activeAt(p, track, us);
+  type Hit = ReturnType<typeof activeAt>;
+
+  /**
+   * Points a player at the clip under the playhead. It is only seeked when the clip changes or it
+   * is further than `limitUs` from where it should be; every other seek would stall playback.
+   */
+  function sync(el: HTMLMediaElement, hit: Hit, limitUs: number, playing: boolean): boolean {
     if (!hit) {
       if (!el.paused) el.pause();
+      delete el.dataset.clip;
       return false;
     }
     const url = fileUrl(editor.proxies[hit.media.id] ?? hit.media.path);
@@ -33,9 +38,11 @@
     const target = hit.sourceUs + 1000;
     if (el.dataset.src !== url) {
       el.dataset.src = url;
+      el.dataset.clip = hit.clip.id;
       el.src = url;
       el.currentTime = target / 1e6;
-    } else if (needsSeek(el.currentTime * 1e6, target) && !(playing && el.seeking)) {
+    } else if (el.dataset.clip !== hit.clip.id || (!el.seeking && needsSeek(el.currentTime * 1e6, target, limitUs))) {
+      el.dataset.clip = hit.clip.id;
       el.currentTime = target / 1e6;
     }
     if (playing && el.paused) el.play().catch(() => {});
@@ -45,9 +52,17 @@
 
   function syncAll(playing: boolean) {
     if (!video || !audio) return;
-    showVideo = sync(video, editor.project, 'video', editor.playheadUs, playing);
-    sync(audio, editor.project, 'audio', editor.playheadUs, playing);
+    const vHit = activeAt(editor.project, 'video', editor.playheadUs);
+    const aHit = activeAt(editor.project, 'audio', editor.playheadUs);
+    showVideo = sync(video, vHit, playing ? VIDEO_RESEEK_US : PAUSED_SEEK_US, playing);
+    // While the video is the clock, keep the audio close to it; otherwise the audio is the clock.
+    const audioLimit = !playing ? PAUSED_SEEK_US : vHit ? AUDIO_DRIFT_US : VIDEO_RESEEK_US;
+    sync(audio, aHit, audioLimit, playing);
   }
+
+  /** A player that is showing `hit`'s clip and actually playing, so its time can drive the playhead. */
+  const ready = (el: HTMLMediaElement, hit: Hit) =>
+    !!hit && el.dataset.clip === hit.clip.id && !el.seeking && !el.paused && el.readyState >= 2;
 
   // While paused, show the exact frame under the playhead.
   $effect(() => {
@@ -57,13 +72,16 @@
     if (!editor.playing) syncAll(false);
   });
 
-  // Playback: the timeline clock runs on wall time and the players follow it.
+  // Playback: the playing video (or audio) is the clock; wall time only covers gaps.
   $effect(() => {
     if (!editor.playing) return;
     const end = timelineEndUs(editor.project);
     // Only `playing` and the project restart this loop; the playhead changes every frame.
     return untrack(() => play(end));
   });
+
+  /** How long the playhead waits for a player that is loading or seeking before moving on anyway. */
+  const MAX_WAIT_MS = 1000;
 
   function play(end: number) {
     if (end === 0) {
@@ -72,10 +90,29 @@
     }
     if (editor.playheadUs >= end) editor.playheadUs = 0;
     let last = performance.now();
+    let waitingSince: number | null = null;
     let raf = 0;
     const tick = (now: number) => {
-      const next = editor.playheadUs + (now - last) * 1000;
+      const elapsedUs = (now - last) * 1000;
       last = now;
+      const prev = editor.playheadUs;
+      const vHit = activeAt(editor.project, 'video', prev);
+      const aHit = activeAt(editor.project, 'audio', prev);
+      const [el, hit] = vHit ? [video, vHit] : [audio, aHit];
+      let next: number;
+      if (!hit) {
+        next = advancePlayhead(prev, elapsedUs, null);
+        waitingSince = null;
+      } else if (el.ended) {
+        next = clipEnd(hit.clip);
+      } else if (ready(el, hit)) {
+        next = advancePlayhead(prev, elapsedUs, { clip: hit.clip, mediaTimeUs: el.currentTime * 1e6 });
+        waitingSince = null;
+      } else {
+        // Loading or seeking into a new clip: hold, unless it takes too long.
+        waitingSince ??= now;
+        next = now - waitingSince > MAX_WAIT_MS ? prev + elapsedUs : prev;
+      }
       if (next >= end) {
         editor.playheadUs = end;
         editor.playing = false;

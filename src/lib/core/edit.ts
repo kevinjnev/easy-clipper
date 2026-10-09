@@ -1,7 +1,7 @@
 /**
  * Pure edit operations. Every function returns a new Project and leaves its input untouched.
  * Clips on a track never overlap; operations on a linked clip apply to its partner too.
- * Nothing moves other clips except dropping onto an occupied spot, which inserts and pushes.
+ * Nothing moves other clips except dropping onto an occupied spot, which pushes only what is in the way.
  */
 import { clipEnd, clipLen, mediaOf, partnerOf, timelineEndUs, trackClips, type Clip, type MediaItem, type Project } from './model';
 import { frameDurationUs, frameToUs, snapToFrame, stepFrames, usToFrame } from './time';
@@ -38,64 +38,89 @@ export function appendMedia(p: Project, mediaId: string): Project {
   return { ...p, clips: [...p.clips, ...clips] };
 }
 
-/** Timeline points not strictly inside any clip, nearest to `atUs` (ties go earlier). */
-export function nearestBoundary(p: Project, atUs: number): number {
+/** Points on `track` not strictly inside any of `clips`, nearest to `atUs` (ties go earlier). */
+function nearestTrackBoundary(clips: Clip[], track: Clip['track'], atUs: number): number {
+  const onTrack = clips.filter((c) => c.track === track);
   const points = new Set<number>([0]);
-  for (const c of p.clips) {
+  for (const c of onTrack) {
     points.add(c.startUs);
     points.add(clipEnd(c));
   }
   let best = 0;
   for (const x of [...points].sort((a, b) => a - b)) {
-    if (p.clips.some((c) => c.startUs < x && x < clipEnd(c))) continue;
+    if (onTrack.some((c) => c.startUs < x && x < clipEnd(c))) continue;
     if (Math.abs(x - atUs) < Math.abs(best - atUs)) best = x;
   }
   return best;
 }
 
-export type Placement = { kind: 'free'; startUs: number } | { kind: 'insert'; atUs: number };
+const overlaps = (a: Clip, b: Clip) => a.track === b.track && a.startUs < clipEnd(b) && clipEnd(a) > b.startUs;
+
+export interface Placed {
+  project: Project;
+  /** Where the group's earliest clip ended up. */
+  startUs: number;
+  /** Clips (not in the group) that had to move right to make room. */
+  pushedIds: string[];
+}
 
 /**
- * Where a group of clips (keeping their offsets from each other) lands when dropped with its
- * earliest clip at `targetStartUs`: exactly there if every clip fits on its track, otherwise
- * inserted at the clip boundary nearest the drop point. Clips in the group are ignored as obstacles.
+ * Drops a group of clips (keeping their offsets) with its earliest clip at `targetStartUs`.
+ * If every clip fits on its own track, it lands exactly there and nothing moves. Otherwise the group
+ * moves to the nearest clip boundary on the blocked track, and only clips that would overlap are
+ * pushed right — just far enough, together with their linked partners — so gaps absorb the push.
  */
-export function dropPlacement(p: Project, group: Clip[], targetStartUs: number): Placement {
+export function placeGroup(p: Project, group: Clip[], targetStartUs: number): Placed {
   const ids = new Set(group.map((c) => c.id));
   const others = p.clips.filter((c) => !ids.has(c.id));
   const groupStart = Math.min(...group.map((c) => c.startUs));
-  const start = Math.max(0, targetStartUs);
-  const fits = group.every((c) => {
-    const s = start + (c.startUs - groupStart);
-    const e = s + clipLen(c);
-    return !others.some((o) => o.track === c.track && o.startUs < e && clipEnd(o) > s);
-  });
-  if (fits) return { kind: 'free', startUs: start };
-  return { kind: 'insert', atUs: nearestBoundary({ ...p, clips: others }, start) };
-}
+  const at = (start: number) => group.map((c) => ({ ...c, startUs: start + (c.startUs - groupStart) }));
 
-/** Puts the group at its placement; an insert pushes every later clip right by the group's length. */
-function applyPlacement(p: Project, group: Clip[], placement: Placement): Project {
-  const ids = new Set(group.map((c) => c.id));
-  let others = p.clips.filter((c) => !ids.has(c.id));
-  const groupStart = Math.min(...group.map((c) => c.startUs));
-  const groupEnd = Math.max(...group.map(clipEnd));
-  let start: number;
-  if (placement.kind === 'free') {
-    start = placement.startUs;
-  } else {
-    start = placement.atUs;
-    const len = groupEnd - groupStart;
-    others = others.map((c) => (c.startUs >= start ? { ...c, startUs: c.startUs + len } : c));
+  let start = Math.max(0, targetStartUs);
+  const blocked = at(start).find((g) => others.some((o) => overlaps(g, o)));
+  if (blocked) {
+    const offset = blocked.startUs - start;
+    start = Math.max(0, nearestTrackBoundary(others, blocked.track, blocked.startUs) - offset);
   }
-  return { ...p, clips: [...others, ...group.map((c) => ({ ...c, startUs: start + (c.startUs - groupStart) }))] };
+
+  const fixed: Clip[] = at(start);
+  let movable = others.slice();
+  const pushedIds: string[] = [];
+  for (;;) {
+    const hit = movable
+      .filter((m) => fixed.some((f) => overlaps(m, f)))
+      .sort((a, b) => a.startUs - b.startUs)[0];
+    if (!hit) break;
+    const unit = movable.filter((m) => m.id === hit.id || (hit.linkId && m.linkId === hit.linkId));
+    // Smallest push that clears every fixed clip for the clip and its partner together.
+    let d = 0;
+    for (let changed = true; changed; ) {
+      changed = false;
+      for (const u of unit) {
+        const moved = { ...u, startUs: u.startUs + d };
+        for (const f of fixed) {
+          if (overlaps(moved, f) && clipEnd(f) - u.startUs > d) {
+            d = clipEnd(f) - u.startUs;
+            changed = true;
+          }
+        }
+      }
+    }
+    const unitIds = new Set(unit.map((u) => u.id));
+    movable = movable.filter((m) => !unitIds.has(m.id));
+    for (const u of unit) {
+      fixed.push({ ...u, startUs: u.startUs + d });
+      pushedIds.push(u.id);
+    }
+  }
+  return { project: { ...p, clips: [...fixed, ...movable] }, startUs: start, pushedIds };
 }
 
 /** Adds media with its first clip starting at `atUs` (or inserted at the nearest gap if that spot is taken). */
 export function dropMedia(p: Project, mediaId: string, atUs: number): Project {
   const group = clipsForMedia(p, mediaId);
   if (group.length === 0) return p;
-  return applyPlacement(p, group, dropPlacement(p, group, atUs));
+  return placeGroup(p, group, atUs).project;
 }
 
 /** A clip and its linked partner. */
@@ -111,8 +136,7 @@ export function moveClip(p: Project, clipId: string, targetUs: number): Project 
   const group = groupOf(p, clipId);
   if (group.length === 0) return p;
   const groupStart = Math.min(...group.map((c) => c.startUs));
-  const target = targetUs - (group[0].startUs - groupStart);
-  return applyPlacement(p, group, dropPlacement(p, group, target));
+  return placeGroup(p, group, targetUs - (group[0].startUs - groupStart)).project;
 }
 
 /** The ids plus each one's linked partner. */

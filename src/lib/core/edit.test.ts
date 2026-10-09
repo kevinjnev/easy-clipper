@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMedia, appendMedia, deleteClips, dropMedia, dropPlacement, moveClip, splitAt, toggleLink, trimEdge } from './edit';
+import { addMedia, appendMedia, deleteClips, dropMedia, moveClip, placeGroup, splitAt, toggleLink, trimEdge } from './edit';
 import { createProject, parseProject, serializeProject, trackClips, type MediaItem, type Project } from './model';
 
 const FPS = { num: 30, den: 1 };
@@ -239,12 +239,55 @@ describe('dropMedia', () => {
   });
 });
 
-describe('dropPlacement', () => {
-  it('reports a free spot or the insertion point', () => {
+describe('placeGroup', () => {
+  it('reports where the group lands and which clips it pushes', () => {
     const p = twoPairs();
     const group = [v(p)[1], a(p)[1]];
-    expect(dropPlacement(p, group, 25 * S)).toEqual({ kind: 'free', startUs: 25 * S });
-    expect(dropPlacement(p, group, 3 * S)).toEqual({ kind: 'insert', atUs: 0 });
+    const free = placeGroup(p, group, 25 * S);
+    expect(free.startUs).toBe(25 * S);
+    expect(free.pushedIds).toEqual([]);
+    const blocked = placeGroup(p, group, 3 * S);
+    expect(blocked.startUs).toBe(0);
+    expect(blocked.pushedIds.sort()).toEqual([v(p)[0].id, a(p)[0].id].sort());
+  });
+});
+
+describe('pushing only what is in the way', () => {
+  it('a gap after the blocking clip absorbs the push', () => {
+    let p = addMedia(addMedia(twoPairs(), media('C', 5)), media('D', 10));
+    p = dropMedia(p, 'D', 30 * S); // A 0-10, B 10-20, gap, D 30-40
+    p = dropMedia(p, 'C', 12 * S);
+    expect(layout(v(p))).toEqual(['A@0-10', 'C@10-15', 'B@15-25', 'D@30-40']);
+    expect(layout(a(p))).toEqual(['A@0-10', 'C@10-15', 'B@15-25', 'D@30-40']);
+  });
+
+  it('pushes cascade through clips with no gap between them', () => {
+    let p = addMedia(threePairs(), media('X', 5)); // A 0-10, B 10-20, C 20-25
+    p = dropMedia(p, 'X', 6 * S);
+    expect(layout(v(p))).toEqual(['A@0-10', 'X@10-15', 'B@15-25', 'C@25-30']);
+  });
+
+  it('only the blocked track is pushed: video over an audio-only stretch moves nothing', () => {
+    let p = appendMedia(withMedia(media('A', 10), media('M', 10, { video: false }), media('V', 5, { audio: false })), 'A');
+    p = dropMedia(p, 'M', 20 * S); // music on the audio track at 20-30, nothing on video there
+    p = dropMedia(p, 'V', 22 * S);
+    expect(layout(v(p))).toEqual(['A@0-10', 'V@22-27']);
+    expect(layout(a(p))).toEqual(['A@0-10', 'M@20-30']);
+  });
+
+  it('a pair whose audio lands on another audio clip pushes just that clip', () => {
+    let p = appendMedia(withMedia(media('A', 10), media('M', 10, { video: false }), media('P', 5)), 'A');
+    p = dropMedia(p, 'M', 20 * S);
+    p = dropMedia(p, 'P', 22 * S);
+    expect(layout(v(p))).toEqual(['A@0-10', 'P@20-25']);
+    expect(layout(a(p))).toEqual(['A@0-10', 'P@20-25', 'M@25-35']);
+  });
+
+  it("a pushed clip's linked partner moves with it", () => {
+    let p = addMedia(twoPairs(), media('V', 5, { audio: false }));
+    p = dropMedia(p, 'V', 3 * S);
+    expect(layout(v(p))).toEqual(['V@0-5', 'A@5-15', 'B@15-25']);
+    expect(layout(a(p))).toEqual(['A@5-15', 'B@15-25']);
   });
 });
 

@@ -16,6 +16,13 @@
   let fileHover = $state(false);
   const dragName = $derived(editor.mediaDrag ? editor.project.media.find((m) => m.id === editor.mediaDrag?.mediaId)?.name : null);
 
+  /** The browser's own right-click menu is meaningless here; keep it only for text boxes (copy/paste). */
+  function onContextMenu(e: MouseEvent) {
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+    e.preventDefault();
+  }
+
   function onKeydown(e: KeyboardEvent) {
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
@@ -55,7 +62,7 @@
   });
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} oncontextmenu={onContextMenu} />
 
 <div class="app" class:with-shortcuts={editor.showShortcuts}>
   <Toolbar />

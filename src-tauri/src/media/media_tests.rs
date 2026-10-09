@@ -15,6 +15,7 @@ fn info(video: Option<&str>, audio: Option<&str>) -> MediaInfo {
         video_codec: video.map(str::to_owned),
         audio_codec: audio.map(str::to_owned),
         format_name: String::new(),
+        bit_rate: None,
     }
 }
 
@@ -43,4 +44,32 @@ fn encoder_choice() {
     assert_eq!(pick_encoder(&[], false), "libx264");
     assert_eq!(pick_encoder(&["h264_amf".to_owned()], true), "libx264");
     assert_eq!(pick_encoder(&["h264_amf".to_owned()], false), "h264_amf");
+}
+
+#[test]
+fn heavy_files_get_a_preview_copy() {
+    let mut big = info(Some("h264"), Some("aac"));
+    big.width = 2560;
+    big.height = 1440;
+    assert!(needs_proxy(&big, "mp4"), "1440p");
+
+    let mut tall = info(Some("h264"), Some("aac"));
+    tall.width = 1080;
+    tall.height = 1920;
+    assert!(!needs_proxy(&tall, "mp4"), "portrait 1080p is fine");
+
+    let mut fast = info(Some("h264"), Some("aac"));
+    fast.fps_num = 120;
+    assert!(needs_proxy(&fast, "mp4"), "120 fps");
+    fast.fps_num = 60;
+    assert!(!needs_proxy(&fast, "mp4"), "60 fps is fine");
+    fast.fps_num = 60000;
+    fast.fps_den = 1001;
+    assert!(!needs_proxy(&fast, "mp4"), "59.94 fps is fine");
+
+    let mut dense = info(Some("h264"), Some("aac"));
+    dense.bit_rate = Some(45_000_000);
+    assert!(needs_proxy(&dense, "mp4"), "45 Mbps");
+    dense.bit_rate = Some(20_000_000);
+    assert!(!needs_proxy(&dense, "mp4"), "20 Mbps is fine");
 }

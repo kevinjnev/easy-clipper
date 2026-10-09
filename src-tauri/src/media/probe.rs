@@ -19,6 +19,8 @@ pub struct MediaInfo {
     pub video_codec: Option<String>,
     pub audio_codec: Option<String>,
     pub format_name: String,
+    /// Overall bit rate in bits per second, when the container reports it.
+    pub bit_rate: Option<u64>,
 }
 
 /// Parses "30000/1001"; None for "0/0" or garbage.
@@ -63,6 +65,7 @@ pub fn parse_probe_json(json: &str) -> AppResult<MediaInfo> {
         video_codec: codec(video),
         audio_codec: codec(audio),
         format_name: root["format"]["format_name"].as_str().unwrap_or("").to_owned(),
+        bit_rate: root["format"]["bit_rate"].as_str().and_then(|b| b.parse().ok()),
     })
 }
 

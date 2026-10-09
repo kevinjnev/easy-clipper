@@ -27,3 +27,18 @@ fn waveform_has_80_peaks_per_second() {
     // The padded tail is silent; the 2 s of tone must not be.
     assert!(peaks[..158].iter().all(|&p| p > 0.1), "some peaks were silent: {peaks:?}");
 }
+
+#[test]
+fn heavy_file_gets_a_720p_60fps_preview_copy() {
+    if !common::have_ffmpeg() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let clip = common::make_clip(dir.path(), "heavy.mp4", 1.0, 2560, 1440, 120, true);
+    let info = easy_clipper_lib::media::probe::probe(&clip).unwrap();
+    assert!(easy_clipper_lib::media::proxy::needs_proxy(&info, "mp4"));
+    let proxy = easy_clipper_lib::media::proxy::make_proxy(&clip, &info).unwrap();
+    assert_eq!(common::probe_entry(&proxy, "v:0", "stream=width,height"), "1280,720");
+    assert_eq!(common::probe_entry(&proxy, "v:0", "stream=avg_frame_rate"), "60/1");
+    assert_eq!(common::probe_entry(&proxy, "a:0", "stream=codec_name"), "aac");
+}

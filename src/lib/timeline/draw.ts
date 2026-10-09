@@ -23,7 +23,6 @@ const C = {
 
 export interface DrawState {
   selection: Selection;
-  playheadUs: number;
   /** x of the insertion marker while dragging media or a clip onto the timeline. */
   dropX: number | null;
   /** Clip being moved, drawn semi-transparent at its new position. */
@@ -141,6 +140,7 @@ function drawClip(
   }
 }
 
+/** Everything except the playhead; redrawn only when the timeline changes, not every playback frame. */
 export function drawTimeline(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -173,7 +173,10 @@ export function drawTimeline(
     ctx.fillRect(Math.round(s.dropX) - 1, RULER_H, 3, h - RULER_H);
   }
 
-  const px = Math.round(usToX(s.playheadUs, v));
+}
+
+export function drawPlayhead(ctx: CanvasRenderingContext2D, h: number, playheadUs: number, v: View) {
+  const px = Math.round(usToX(playheadUs, v));
   ctx.fillStyle = C.playhead;
   ctx.fillRect(px, 0, 2, h);
   ctx.beginPath();

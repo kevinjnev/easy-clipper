@@ -48,3 +48,11 @@ fn probe_rejects_files_without_streams() {
     let json = r#"{"streams":[],"format":{"format_name":"txt","duration":"1"}}"#;
     assert!(parse_probe_json(json).is_err());
 }
+
+#[test]
+fn probe_reads_bit_rate() {
+    let json = r#"{"streams":[{"codec_type":"video","codec_name":"h264","width":1920,"height":1080,"avg_frame_rate":"60/1"}],
+        "format":{"format_name":"mov,mp4","duration":"5.0","bit_rate":"45123456"}}"#;
+    assert_eq!(parse_probe_json(json).unwrap().bit_rate, Some(45_123_456));
+    assert_eq!(parse_probe_json(V).unwrap().bit_rate.is_some(), true);
+}

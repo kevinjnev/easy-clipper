@@ -1,12 +1,14 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { fileUrl } from '../api';
-  import { clipsForMedia, dropMedia, dropPlacement, groupOf, moveClip, trimEdge, type Placement } from '../core/edit';
+  import { clipsForMedia, dropMedia, groupOf, moveClip, placeGroup, splitAt, trimEdge } from '../core/edit';
+  import { timelineMenu, type MenuAction, type MenuItem } from '../timeline/menu';
+  import ContextMenu from './ContextMenu.svelte';
   import { clipEnd, clipLen, timelineEndUs, type Clip } from '../core/model';
   import { snapSpan, snapTargets, snapThresholdUs, snapValue } from '../core/snap';
   import { formatTimecode } from '../core/time';
   import { editor } from '../state/editor.svelte';
-  import { drawTimeline, type DrawState } from '../timeline/draw';
+  import { drawPlayhead, drawTimeline, type DrawState } from '../timeline/draw';
   import { hitTest, RULER_H, trackTop, TRACK_H, usToX, xToUs, type Hit, type View } from '../timeline/geometry';
 
   const DRAG_PX = 4;
@@ -42,26 +44,38 @@
     }
   });
 
-  // Redraw whenever anything visible changes.
+  // The clips are drawn into an off-screen layer only when the timeline changes; each frame (e.g.
+  // during playback) just copies that layer and draws the playhead on top.
+  const layer = typeof document === 'undefined' ? null : document.createElement('canvas');
+  let layerVersion = $state(0);
+
   $effect(() => {
-    const state: DrawState = {
-      selection: editor.selection,
-      playheadUs: editor.playheadUs,
-      dropX,
-      ghost,
-      hoverEdge,
-    };
+    const state: DrawState = { selection: editor.selection, dropX, ghost, hoverEdge };
     void imageTick;
     void JSON.stringify(editor.selection);
-    const ctx = canvas?.getContext('2d');
-    if (!ctx) return;
+    const ctx = layer?.getContext('2d');
+    if (!layer || !ctx) return;
     const dpr = window.devicePixelRatio || 1;
     const w = Math.round(width * dpr);
     const h = Math.round(height * dpr);
-    if (canvas.width !== w) canvas.width = w;
-    if (canvas.height !== h) canvas.height = h;
+    if (layer.width !== w) layer.width = w;
+    if (layer.height !== h) layer.height = h;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawTimeline(ctx, width, height, editor.project, view, state, images, editor.waves);
+    untrack(() => layerVersion++);
+  });
+
+  $effect(() => {
+    void layerVersion;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx || !layer) return;
+    if (canvas.width !== layer.width) canvas.width = layer.width;
+    if (canvas.height !== layer.height) canvas.height = layer.height;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(layer, 0, 0);
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawPlayhead(ctx, height, editor.playheadUs, view);
   });
 
   // Keep the scroll bar in step with scrolling done any other way (wheel, zoom, playback).
@@ -157,11 +171,11 @@
   const threshold = () => snapThresholdUs(editor.pxPerSec, editor.project.fps);
   const targets = (excludeIds: string[]) => snapTargets(editor.project, editor.playheadUs, excludeIds);
 
-  /** Where a dragged group starting at `startUs` would land; shows the insert marker if it would push clips. */
-  function preview(group: Clip[], groupStartUs: number): Placement {
-    const placement = dropPlacement(editor.project, group, groupStartUs);
-    dropX = placement.kind === 'insert' ? usToX(placement.atUs, view) : null;
-    return placement;
+  /** Where a dragged group would land; shows a marker there when the drop would push other clips. */
+  function preview(group: Clip[], groupStartUs: number): number {
+    const placed = placeGroup(editor.project, group, groupStartUs);
+    dropX = placed.pushedIds.length ? usToX(placed.startUs, view) : null;
+    return placed.startUs;
   }
 
   function onPointerDown(e: PointerEvent) {
@@ -216,8 +230,8 @@
         let gs = Math.max(0, groupStart + shift);
         if (!ev.altKey) gs = snapSpan(gs, groupEnd - groupStart, targets(group.map((c) => c.id)), threshold());
         newStart = gs + (clip.startUs - groupStart);
-        ghost = { clipIds: group.map((c) => c.id), offsetUs: newStart - clip.startUs };
-        preview(group, gs);
+        const landsAt = preview(group, gs);
+        ghost = { clipIds: group.map((c) => c.id), offsetUs: landsAt - groupStart };
       },
       () => {
         if (moving) editor.apply((p) => moveClip(p, hit.clipId, newStart));
@@ -227,6 +241,37 @@
       },
       x,
     );
+  }
+
+  // Right-click menu.
+  let menu = $state<{ x: number; y: number; items: MenuItem[]; atUs: number } | null>(null);
+
+  function onContextMenu(e: MouseEvent) {
+    e.preventDefault();
+    const { x, y } = local(e);
+    const hit = hitTest(editor.project, view, x, y);
+    const atUs = Math.max(0, xToUs(x, view));
+    let items: MenuItem[];
+    if (hit.kind === 'clip' || hit.kind === 'edge') {
+      if (!editor.selection.clipIds.includes(hit.clipId)) editor.selectClips(groupOf(editor.project, hit.clipId).map((c) => c.id));
+      items = timelineMenu(editor.project, editor.selection.clipIds, 'clip', atUs, editor.playheadUs);
+    } else {
+      items = timelineMenu(editor.project, [], 'empty', atUs);
+    }
+    menu = { x: e.clientX, y: e.clientY, items, atUs };
+  }
+
+  function onMenuPick(action: MenuAction) {
+    const atUs = menu?.atUs ?? 0;
+    const ids = editor.selection.clipIds;
+    switch (action) {
+      case 'splitHere': editor.apply((p) => splitAt(p, atUs, ids)); break;
+      case 'splitPlayhead': editor.runAction('split'); break;
+      case 'delete': editor.runAction('delete'); break;
+      case 'link': editor.runAction('toggleLink'); break;
+      case 'playheadHere': editor.setPlayhead(atUs); break;
+      case 'fit': fit(); break;
+    }
   }
 
   // Media dragged from the bin: show where it would land; add it only on drop.
@@ -245,8 +290,7 @@
     let start = Math.max(0, xToUs(x, view));
     if (!e.altKey) start = snapSpan(start, Math.max(...group.map(clipLen)), targets([]), threshold());
     mediaDropStart = start;
-    const placement = preview(group, start);
-    if (placement.kind === 'free') dropX = usToX(start, view);
+    dropX = usToX(preview(group, start), view);
   }
 
   function onWindowPointerUp() {
@@ -273,6 +317,10 @@
 
 <svelte:window onpointermove={onWindowPointerMove} onpointerup={onWindowPointerUp} />
 
+{#if menu}
+  <ContextMenu x={menu.x} y={menu.y} items={menu.items} onpick={onMenuPick} onclose={() => (menu = null)} />
+{/if}
+
 <section class="timeline">
   <div class="bar">
     <span class="tc">{formatTimecode(editor.playheadUs, editor.project.fps)} / {formatTimecode(endUs, editor.project.fps)}</span>
@@ -298,6 +346,7 @@
           onpointerdown={onPointerDown}
           onpointermove={onHover}
           onpointerleave={() => (hoverEdge = null)}
+          oncontextmenu={onContextMenu}
         ></canvas>
         {#if editor.project.clips.length === 0}
           <div class="hint">Drag media here from the bin, or select it and press <kbd>Enter</kbd></div>
