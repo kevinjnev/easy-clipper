@@ -2,6 +2,7 @@ mod commands;
 pub mod encoders;
 pub mod error;
 pub mod export;
+pub mod logs;
 pub mod media;
 pub mod paths;
 
@@ -10,6 +11,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(export::run::ExportHandle::default())
         .invoke_handler(tauri::generate_handler![
             commands::probe_media,
             commands::ffmpeg_status,
@@ -17,6 +19,11 @@ pub fn run() {
             commands::get_waveform,
             commands::ensure_proxy,
             commands::list_encoders,
+            commands::start_export,
+            commands::cancel_export,
+            commands::read_text,
+            commands::write_text,
+            commands::path_exists,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

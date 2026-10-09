@@ -19,7 +19,9 @@ pub fn make_clip(dir: &Path, name: &str, secs: f64, w: u32, h: u32, fps: u32, au
     if audio {
         cmd.args(["-f", "lavfi", "-i"]).arg(format!("sine=frequency=440:duration={secs}"));
     }
-    cmd.args(["-c:v", "libx264", "-pix_fmt", "yuv420p"]);
+    // Odd sizes can't use 4:2:0 chroma subsampling.
+    let pix_fmt = if w % 2 == 1 || h % 2 == 1 { "yuv444p" } else { "yuv420p" };
+    cmd.args(["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", pix_fmt]);
     if audio {
         cmd.args(["-c:a", "aac"]);
     }

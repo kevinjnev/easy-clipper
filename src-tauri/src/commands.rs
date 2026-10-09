@@ -3,7 +3,12 @@
 use std::path::PathBuf;
 
 use crate::error::{AppError, AppResult};
+use tauri::Emitter;
+
 use crate::encoders;
+use crate::export::build::build_export;
+use crate::export::model::{ExportProject, ExportSettings};
+use crate::export::run::{run_export, ExportHandle};
 use crate::media::probe::{self, MediaInfo};
 use crate::media::{proxy, thumbs, waveform};
 use crate::paths::tool_path;
@@ -54,4 +59,46 @@ pub async fn ensure_proxy(path: String) -> AppResult<Option<String>> {
 #[tauri::command]
 pub async fn list_encoders() -> AppResult<Vec<String>> {
     blocking(|| Ok(encoders::detect_encoders())).await
+}
+
+#[derive(Clone, serde::Serialize)]
+struct ExportProgress {
+    fraction: f64,
+}
+
+/// Runs an export, emitting `export-progress` events. Resolves when FFmpeg finishes.
+#[tauri::command]
+pub async fn start_export(
+    app: tauri::AppHandle,
+    handle: tauri::State<'_, ExportHandle>,
+    project: ExportProject,
+    settings: ExportSettings,
+) -> AppResult<()> {
+    let handle = handle.inner().clone();
+    blocking(move || {
+        let cmd = build_export(&project, &settings)?;
+        let out = PathBuf::from(&settings.out_path);
+        run_export(cmd, &out, |fraction| { let _ = app.emit("export-progress", ExportProgress { fraction }); }, &handle)
+    })
+    .await
+}
+
+#[tauri::command]
+pub fn cancel_export(handle: tauri::State<'_, ExportHandle>) {
+    handle.cancel();
+}
+
+#[tauri::command]
+pub async fn read_text(path: String) -> AppResult<String> {
+    Ok(std::fs::read_to_string(path)?)
+}
+
+#[tauri::command]
+pub async fn write_text(path: String, text: String) -> AppResult<()> {
+    Ok(std::fs::write(path, text)?)
+}
+
+#[tauri::command]
+pub fn path_exists(path: String) -> bool {
+    std::path::Path::new(&path).is_file()
 }
