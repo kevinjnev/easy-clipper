@@ -3,7 +3,9 @@
 use std::path::PathBuf;
 
 use crate::error::{AppError, AppResult};
+use crate::encoders;
 use crate::media::probe::{self, MediaInfo};
+use crate::media::{proxy, thumbs, waveform};
 use crate::paths::tool_path;
 
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> AppResult<T> + Send + 'static) -> AppResult<T> {
@@ -22,4 +24,34 @@ pub async fn probe_media(path: String) -> AppResult<MediaInfo> {
 pub fn ffmpeg_status() -> AppResult<String> {
     tool_path("ffprobe")?;
     Ok(tool_path("ffmpeg")?.display().to_string())
+}
+
+#[tauri::command]
+pub async fn get_thumbnails(path: String, duration_us: i64) -> AppResult<String> {
+    blocking(move || Ok(thumbs::thumbnails(&PathBuf::from(path), duration_us)?.display().to_string())).await
+}
+
+#[tauri::command]
+pub async fn get_waveform(path: String) -> AppResult<Vec<f32>> {
+    blocking(move || waveform::waveform(&PathBuf::from(path))).await
+}
+
+/// Path of a playable preview copy, or None when the original plays fine.
+#[tauri::command]
+pub async fn ensure_proxy(path: String) -> AppResult<Option<String>> {
+    blocking(move || {
+        let path = PathBuf::from(path);
+        let info = probe::probe(&path)?;
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        if !proxy::needs_proxy(&info, ext) {
+            return Ok(None);
+        }
+        Ok(Some(proxy::make_proxy(&path, &info)?.display().to_string()))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn list_encoders() -> AppResult<Vec<String>> {
+    blocking(|| Ok(encoders::detect_encoders())).await
 }

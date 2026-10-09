@@ -1,4 +1,5 @@
 mod commands;
+pub mod encoders;
 pub mod error;
 pub mod media;
 pub mod paths;
@@ -8,7 +9,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![commands::probe_media, commands::ffmpeg_status])
+        .invoke_handler(tauri::generate_handler![
+            commands::probe_media,
+            commands::ffmpeg_status,
+            commands::get_thumbnails,
+            commands::get_waveform,
+            commands::ensure_proxy,
+            commands::list_encoders,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
