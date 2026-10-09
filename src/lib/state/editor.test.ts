@@ -12,9 +12,15 @@ vi.mock('../api', async (importOriginal) => ({
   getThumbnails: vi.fn(async () => 'C:/cache/t.jpg'),
   getWaveform: vi.fn(async () => [0.5]),
   ensureProxy: vi.fn(async () => null),
+  pickProjectToOpen: vi.fn(async () => 'C:/projects/p.clipproj'),
+  readText: vi.fn(async () => projectJson),
+  pathExists: vi.fn(async (path: string) => path.startsWith('D:/moved/')),
+  pickReplacementFile: vi.fn(async () => 'D:/moved/a.mp4'),
 }));
 
-import { trackClips } from '../core/model';
+let projectJson = '';
+
+import { serializeProject, trackClips } from '../core/model';
 import { EditorStore } from './editor.svelte';
 
 let ed: EditorStore;
@@ -82,5 +88,15 @@ describe('EditorStore', () => {
     expect(trackClips(ed.project, 'video')[0].outUs).toBe(8_000_000);
     ed.undo();
     expect(trackClips(ed.project, 'video')[0].outUs).toBe(10_000_000);
+  });
+
+  it('opening a project with moved media asks for one file and finds the rest in that folder', async () => {
+    await ed.importFiles(['C:/clips/b.mp4']);
+    projectJson = serializeProject(ed.project);
+    const fresh = new EditorStore();
+    await fresh.open();
+    expect(fresh.project.media.map((m) => m.path)).toEqual(['D:/moved/a.mp4', 'D:/moved/b.mp4']);
+    expect(fresh.projectPath).toBe('C:/projects/p.clipproj');
+    expect(fresh.canUndo).toBe(false);
   });
 });

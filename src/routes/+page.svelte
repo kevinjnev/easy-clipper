@@ -26,6 +26,8 @@
   }
 
   onMount(() => {
+    // Development: lets the dev harness / browser console drive the editor.
+    if (import.meta.env.DEV) (window as unknown as { __editor: typeof editor }).__editor = editor;
     ffmpegStatus().catch((e) => (ffmpegError = errorMessage(e)));
     let unlisten: (() => void) | undefined;
     getCurrentWebview()

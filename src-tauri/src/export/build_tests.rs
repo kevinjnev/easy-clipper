@@ -181,3 +181,21 @@ fn empty_timeline_is_an_error() {
     let err = build_export(&project(vec![], vec![]), &settings(Format::Mp4)).unwrap_err();
     assert_eq!(err.message, "Timeline is empty");
 }
+
+/// The exact payload shape the UI sends (captured from the dev harness).
+#[test]
+fn deserializes_ui_payload() {
+    let project: ExportProject = serde_json::from_str(r#"{"fpsNum":30,"fpsDen":1,"width":1280,"height":720,
+        "media":[{"id":"e7","path":"/dev-media/beach.mp4","hasVideo":true,"hasAudio":true,"width":1280,"height":720,
+          "durationUs":8000000,"videoCodec":"h264","audioCodec":"aac","formatName":"mov,mp4,m4a,3gp,3g2,mj2"},
+          {"id":"15","path":"/dev-media/music.mp3","hasVideo":false,"hasAudio":true,"width":0,"height":0,
+          "durationUs":10031020,"videoCodec":null,"audioCodec":"mp3","formatName":"mp3"}],
+        "clips":[{"mediaId":"e7","track":"video","startUs":0,"inUs":0,"outUs":8000000},
+          {"mediaId":"e7","track":"audio","startUs":0,"inUs":0,"outUs":8000000}]}"#).unwrap();
+    let settings: ExportSettings = serde_json::from_str(r#"{"format":"mp4","width":1280,"allowUpscale":false,
+        "quality":"medium","fps":null,"gifFps":15,"encoder":"h264_amf","outPath":"C:/out/export.mp4"}"#).unwrap();
+    assert_eq!(project.clips.len(), 2);
+    assert_eq!(settings.width, Some(1280));
+    assert_eq!(settings.format, Format::Mp4);
+    assert!(build_export(&project, &settings).is_ok());
+}

@@ -1,6 +1,7 @@
 import * as api from '../api';
 import { addMedia, appendMedia, deleteClips, splitAt, toggleLink, trimEdge } from '../core/edit';
 import { History } from '../core/history';
+import { missingMedia, relink, relinkFromFolder } from '../exportProject';
 import { clipEnd, createProject, parseProject, serializeProject, timelineEndUs, type MediaItem, type Project } from '../core/model';
 import { frameDurationUs, stepFrames } from '../core/time';
 import type { Action } from '../shortcuts';
@@ -242,10 +243,45 @@ export class EditorStore {
     const path = await api.pickProjectToOpen();
     if (!path) return;
     try {
-      this.load(parseProject(await api.readText(path)), path);
+      const p = await this.relinkMissing(parseProject(await api.readText(path)));
+      this.load(p, path);
     } catch (e) {
       this.notice = `Could not open project: ${api.errorMessage(e)}`;
     }
+  }
+
+  /**
+   * Asks the user to locate each media file that has moved. After each pick, other missing
+   * files with the same name in that folder are relinked automatically.
+   */
+  private async relinkMissing(p: Project): Promise<Project> {
+    const exists = new Map<string, boolean>();
+    const check = async (paths: string[]) => {
+      await Promise.all(paths.filter((x) => !exists.has(x)).map(async (x) => exists.set(x, await api.pathExists(x))));
+      return (x: string) => exists.get(x) ?? false;
+    };
+
+    let missing = missingMedia(p, await check(p.media.map((m) => m.path)));
+    const skipped: string[] = [];
+    while (missing.length) {
+      const m = missing[0];
+      const picked = await api.pickReplacementFile(m.name);
+      if (!picked) {
+        skipped.push(m.name);
+        p = { ...p, media: p.media.map((x) => (x.id === m.id ? { ...x, error: `File not found: ${x.path}` } : x)) };
+      } else {
+        p = relink(p, m.id, picked);
+        exists.set(picked, true);
+        const folder = picked.replace(/[\\/][^\\/]*$/, '');
+        const others = missing.slice(1);
+        const sep = picked.includes('\\') ? '\\' : '/';
+        const candidates = others.map((o) => `${folder}${sep}${o.name}`);
+        p = relinkFromFolder(p, others.map((o) => o.id), folder, await check(candidates));
+      }
+      missing = missingMedia(p, await check(p.media.map((x) => x.path)));
+    }
+    if (skipped.length) this.notice = `Missing media: ${skipped.join(', ')}. Clips using it can't be previewed or exported.`;
+    return p;
   }
 }
 
