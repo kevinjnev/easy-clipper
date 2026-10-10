@@ -41,7 +41,7 @@
       el.dataset.clip = hit.clip.id;
       el.src = url;
       el.currentTime = target / 1e6;
-    } else if (el.dataset.clip !== hit.clip.id || (!el.seeking && needsSeek(el.currentTime * 1e6, target, limitUs))) {
+    } else if (el.dataset.clip !== hit.clip.id || limitUs === 0 || (!el.seeking && needsSeek(el.currentTime * 1e6, target, limitUs))) {
       el.dataset.clip = hit.clip.id;
       el.currentTime = target / 1e6;
     }
@@ -50,14 +50,15 @@
     return true;
   }
 
-  function syncAll(playing: boolean) {
+  /** `jump`: the playhead was moved by hand, so seek both players there now. */
+  function syncAll(playing: boolean, jump = false) {
     if (!video || !audio) return;
     const vHit = activeAt(editor.project, 'video', editor.playheadUs);
     const aHit = activeAt(editor.project, 'audio', editor.playheadUs);
-    showVideo = sync(video, vHit, playing ? VIDEO_RESEEK_US : PAUSED_SEEK_US, playing);
+    showVideo = sync(video, vHit, jump ? 0 : playing ? VIDEO_RESEEK_US : PAUSED_SEEK_US, playing);
     // While the video is the clock, keep the audio close to it; otherwise the audio is the clock.
     const audioLimit = !playing ? PAUSED_SEEK_US : vHit ? AUDIO_DRIFT_US : VIDEO_RESEEK_US;
-    sync(audio, aHit, audioLimit, playing);
+    sync(audio, aHit, jump ? 0 : audioLimit, playing);
   }
 
   /** A player that is showing `hit`'s clip and actually playing, so its time can drive the playhead. */
@@ -91,11 +92,22 @@
     if (editor.playheadUs >= end) editor.playheadUs = 0;
     let last = performance.now();
     let waitingSince: number | null = null;
+    // The last position this loop wrote; anything else means the user moved the playhead.
+    let lastWritten = editor.playheadUs;
     let raf = 0;
     const tick = (now: number) => {
       const elapsedUs = (now - last) * 1000;
       last = now;
       const prev = editor.playheadUs;
+      if (prev !== lastWritten) {
+        // Clicked or dragged on the timeline (either direction): jump the players there and
+        // wait for them, rather than letting the old video position pull the playhead back.
+        lastWritten = prev;
+        waitingSince = null;
+        syncAll(true, true);
+        raf = requestAnimationFrame(tick);
+        return;
+      }
       const vHit = activeAt(editor.project, 'video', prev);
       const aHit = activeAt(editor.project, 'audio', prev);
       const [el, hit] = vHit ? [video, vHit] : [audio, aHit];
@@ -119,6 +131,7 @@
         return;
       }
       editor.playheadUs = next;
+      lastWritten = next;
       syncAll(true);
       raf = requestAnimationFrame(tick);
     };
