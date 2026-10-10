@@ -142,4 +142,29 @@ describe('EditorStore', () => {
     ed.runAction('delete');
     expect(trackClips(ed.project, 'video').map((c) => c.startUs)).toEqual([10_000_000]);
   });
+
+  it('Home and End jump to the start and last frame of the selected clips', async () => {
+    await ed.importFiles(['C:/clips/b.mp4']);
+    ed.runAction('appendSelectedMedia'); // second pair at 10-20 s
+    const [first, second] = trackClips(ed.project, 'video');
+    ed.selectClips([first.id, second.id]);
+    ed.setPlayhead(5_000_000);
+    ed.runAction('end');
+    expect(ed.playheadUs).toBe(19_966_667); // 20 s minus one frame at 30 fps
+    ed.runAction('home');
+    expect(ed.playheadUs).toBe(0);
+    ed.selectClips([second.id]);
+    ed.runAction('home');
+    expect(ed.playheadUs).toBe(10_000_000);
+  });
+
+  it('Home and End use the whole timeline when nothing is selected', async () => {
+    await ed.importFiles(['C:/clips/b.mp4']);
+    ed.runAction('appendSelectedMedia');
+    ed.selectClips([]);
+    ed.runAction('end');
+    expect(ed.playheadUs).toBe(20_000_000);
+    ed.runAction('home');
+    expect(ed.playheadUs).toBe(0);
+  });
 });

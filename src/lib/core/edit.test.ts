@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { addMedia, appendMedia, deleteClips, dropMedia, moveClip, placeGroup, splitAt, toggleLink, trimEdge } from './edit';
-import { createProject, parseProject, serializeProject, trackClips, type MediaItem, type Project } from './model';
+import { createProject, parseProject, selectionBounds, serializeProject, trackClips, type MediaItem, type Project } from './model';
 
 const FPS = { num: 30, den: 1 };
 const F = 33_333; // one frame at 30 fps, rounded
@@ -341,6 +341,20 @@ describe('toggleLink', () => {
   it('ignores two clips on the same track', () => {
     const p = twoPairs();
     expect(toggleLink(p, [v(p)[0].id, v(p)[1].id])).toBe(p);
+  });
+});
+
+describe('selectionBounds', () => {
+  it('spans every selected clip on both tracks', () => {
+    let p = twoPairs();
+    const audioB = a(p)[1];
+    p = toggleLink(p, [v(p)[1].id, audioB.id]);
+    p = moveClip(p, audioB.id, 23 * S); // audio B at 23-33 s, video B still 10-20 s
+    expect(selectionBounds(p, [v(p)[1].id, audioB.id])).toEqual({ startUs: 10 * S, endUs: 33 * S });
+  });
+
+  it('is null when nothing is selected', () => {
+    expect(selectionBounds(twoPairs(), [])).toBeNull();
   });
 });
 

@@ -52,6 +52,13 @@ export function timelineEndUs(p: Project): number {
   return p.clips.reduce((end, c) => Math.max(end, clipEnd(c)), 0);
 }
 
+/** Earliest start and latest end across the given clips (any tracks), or null if none exist. */
+export function selectionBounds(p: Project, clipIds: string[]): { startUs: number; endUs: number } | null {
+  const sel = p.clips.filter((c) => clipIds.includes(c.id));
+  if (sel.length === 0) return null;
+  return { startUs: Math.min(...sel.map((c) => c.startUs)), endUs: Math.max(...sel.map(clipEnd)) };
+}
+
 export function trackClips(p: Project, t: TrackKind): Clip[] {
   return p.clips.filter((c) => c.track === t).sort((a, b) => a.startUs - b.startUs);
 }

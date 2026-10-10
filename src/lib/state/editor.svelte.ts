@@ -2,7 +2,7 @@ import * as api from '../api';
 import { addMedia, appendMedia, deleteClips, splitAt, toggleLink, trimEdge } from '../core/edit';
 import { History } from '../core/history';
 import { missingMedia, relink, relinkFromFolder } from '../exportProject';
-import { clipEnd, createProject, parseProject, serializeProject, timelineEndUs, type MediaItem, type Project } from '../core/model';
+import { clipEnd, createProject, parseProject, selectionBounds, serializeProject, timelineEndUs, type MediaItem, type Project } from '../core/model';
 import { frameDurationUs, stepFrames } from '../core/time';
 import type { Action } from '../shortcuts';
 
@@ -223,8 +223,13 @@ export class EditorStore {
       case 'stepFwd10': this.stepOrTrim(10); break;
       case 'selectLeftEdge': this.selectEdge('left'); break;
       case 'selectRightEdge': this.selectEdge('right'); break;
-      case 'home': this.setPlayhead(0); break;
-      case 'end': this.setPlayhead(timelineEndUs(this.project)); break;
+      case 'home': this.setPlayhead(selectionBounds(this.project, ids)?.startUs ?? 0); break;
+      case 'end': {
+        // With a selection, land on its last frame so the preview shows it (not what follows).
+        const bounds = selectionBounds(this.project, ids);
+        this.setPlayhead(bounds ? stepFrames(bounds.endUs, -1, this.project.fps) : timelineEndUs(this.project));
+        break;
+      }
       case 'save': void this.save(); break;
       case 'open': void this.open(); break;
       case 'export': if (this.project.clips.length) this.exportOpen = true; break;
