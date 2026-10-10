@@ -237,7 +237,10 @@
     display: grid;
     place-items: center;
   }
+  /* Pinned to the box so the picture always scales to fit, in both directions. */
   video {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: contain;
@@ -289,5 +292,7 @@
   .tc {
     font-variant-numeric: tabular-nums;
     min-width: 80px;
+    /* Content-sized (not stretched to its column) so the window's minimum width can be measured. */
+    justify-self: start;
   }
 </style>

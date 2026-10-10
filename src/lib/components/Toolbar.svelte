@@ -45,6 +45,7 @@
   }
   .group {
     display: flex;
+    flex: none;
     gap: 6px;
   }
   .spacer {

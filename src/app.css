@@ -39,6 +39,7 @@ button {
   border-radius: 6px;
   padding: 5px 10px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 button:hover:not(:disabled) {
