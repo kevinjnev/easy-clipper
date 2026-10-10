@@ -14,9 +14,12 @@ export function toExportProject(p: Project): ExportProject {
       .filter((m) => !m.error)
       .map((m) => ({
         id: m.id, path: m.path, hasVideo: m.hasVideo, hasAudio: m.hasAudio, width: m.width, height: m.height,
-        durationUs: m.durationUs, videoCodec: m.videoCodec, audioCodec: m.audioCodec, formatName: m.formatName,
+        durationUs: Math.round(m.durationUs), videoCodec: m.videoCodec, audioCodec: m.audioCodec, formatName: m.formatName,
       })),
-    clips: p.clips.map((c) => ({ mediaId: c.mediaId, track: c.track, startUs: c.startUs, inUs: c.inUs, outUs: c.outUs })),
+    // The exporter takes whole microseconds; older saved projects may hold fractional ones.
+    clips: p.clips.map((c) => ({
+      mediaId: c.mediaId, track: c.track, startUs: Math.round(c.startUs), inUs: Math.round(c.inUs), outUs: Math.round(c.outUs),
+    })),
   };
 }
 

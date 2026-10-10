@@ -72,3 +72,10 @@ describe('offlineClipMedia', () => {
     expect(offlineClipMedia(p)).toEqual([]);
   });
 });
+
+describe('toExportProject with fractional times', () => {
+  it('rounds times to whole microseconds (projects saved by older versions)', () => {
+    const q = { ...p, clips: [{ id: 'c', mediaId: 'a', track: 'video' as const, startUs: 26_849_080.34, inUs: 0.6, outUs: 2_000_000.2 }] };
+    expect(toExportProject(q).clips[0]).toEqual({ mediaId: 'a', track: 'video', startUs: 26_849_080, inUs: 1, outUs: 2_000_000 });
+  });
+});

@@ -76,7 +76,8 @@ export function placeGroup(p: Project, group: Clip[], targetStartUs: number): Pl
   const groupStart = Math.min(...group.map((c) => c.startUs));
   const at = (start: number) => group.map((c) => ({ ...c, startUs: start + (c.startUs - groupStart) }));
 
-  let start = Math.max(0, targetStartUs);
+  // Drop positions come from the mouse, so put them on the project's frame grid (whole microseconds).
+  let start = snapToFrame(Math.max(0, targetStartUs), p.fps);
   const blocked = at(start).find((g) => others.some((o) => overlaps(g, o)));
   if (blocked) {
     const offset = blocked.startUs - start;

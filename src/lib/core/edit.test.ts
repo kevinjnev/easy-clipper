@@ -214,6 +214,23 @@ describe('moveClip', () => {
   });
 });
 
+describe('positions stay on whole frames', () => {
+  it('a clip dragged to a fractional time lands on the nearest frame, in whole microseconds', () => {
+    let p = twoPairs();
+    p = moveClip(p, v(p)[1].id, 26_849_080.341728717);
+    const start = v(p)[1].startUs;
+    expect(Number.isInteger(start)).toBe(true);
+    expect(start).toBe(26_833_333); // frame 805 at 30 fps
+    expect(a(p)[1].startUs).toBe(start);
+  });
+
+  it('media dropped at a fractional time also lands on a frame', () => {
+    let p = addMedia(twoPairs(), media('C', 5));
+    p = dropMedia(p, 'C', 30_000_000.75);
+    expect(v(p)[2].startUs).toBe(30_000_000);
+  });
+});
+
 describe('dropMedia', () => {
   it('places new media exactly where dropped when there is room', () => {
     let p = addMedia(twoPairs(), media('C', 5));
