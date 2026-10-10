@@ -1,6 +1,6 @@
 mod common;
 
-use easy_clipper_lib::media::{thumbs::thumbnails, waveform::waveform};
+use simple_clipper_lib::media::{thumbs::thumbnails, waveform::waveform};
 
 #[test]
 fn thumbnails_make_a_strip_of_ten() {
@@ -35,9 +35,9 @@ fn heavy_file_gets_a_720p_60fps_preview_copy() {
     }
     let dir = tempfile::tempdir().unwrap();
     let clip = common::make_clip(dir.path(), "heavy.mp4", 1.0, 2560, 1440, 120, true);
-    let info = easy_clipper_lib::media::probe::probe(&clip).unwrap();
-    assert!(easy_clipper_lib::media::proxy::needs_proxy(&info, "mp4"));
-    let proxy = easy_clipper_lib::media::proxy::make_proxy(&clip, &info).unwrap();
+    let info = simple_clipper_lib::media::probe::probe(&clip).unwrap();
+    assert!(simple_clipper_lib::media::proxy::needs_proxy(&info, "mp4"));
+    let proxy = simple_clipper_lib::media::proxy::make_proxy(&clip, &info).unwrap();
     assert_eq!(common::probe_entry(&proxy, "v:0", "stream=width,height"), "1280,720");
     assert_eq!(common::probe_entry(&proxy, "v:0", "stream=avg_frame_rate"), "60/1");
     assert_eq!(common::probe_entry(&proxy, "a:0", "stream=codec_name"), "aac");

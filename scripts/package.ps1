@@ -1,4 +1,4 @@
-# Builds the portable release zip: release/EasyClipper-<version>-win-x64.zip
+# Builds the portable release zip: release/SimpleClipper-<version>-win-x64.zip
 # Run scripts/fetch-ffmpeg.ps1 first.
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
@@ -14,12 +14,12 @@ foreach ($f in 'ffmpeg.exe', 'ffprobe.exe') {
 cmd /c "npm run tauri build -- --no-bundle 2>&1"
 if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
 
-$Name = "EasyClipper-$Version-win-x64"
+$Name = "SimpleClipper-$Version-win-x64"
 $Stage = Join-Path $Root "release\$Name"
 Remove-Item $Stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $Stage | Out-Null
 
-Copy-Item 'src-tauri\target\release\EasyClipper.exe' $Stage
+Copy-Item 'src-tauri\target\release\SimpleClipper.exe' $Stage
 Copy-Item (Join-Path $Bin 'ffmpeg.exe'), (Join-Path $Bin 'ffprobe.exe') $Stage
 Copy-Item 'LICENSE', 'THIRD_PARTY_NOTICES.txt' $Stage
 if (Test-Path (Join-Path $Bin 'FFMPEG-LICENSE.txt')) { Copy-Item (Join-Path $Bin 'FFMPEG-LICENSE.txt') $Stage }

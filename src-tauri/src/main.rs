@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    easy_clipper_lib::run()
+    simple_clipper_lib::run()
 }

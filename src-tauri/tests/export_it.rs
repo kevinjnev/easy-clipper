@@ -2,10 +2,10 @@ mod common;
 
 use std::path::{Path, PathBuf};
 
-use easy_clipper_lib::encoders::{detect_encoders, pick_encoder};
-use easy_clipper_lib::export::build::build_export;
-use easy_clipper_lib::export::model::*;
-use easy_clipper_lib::export::run::{run_export, ExportHandle};
+use simple_clipper_lib::encoders::{detect_encoders, pick_encoder};
+use simple_clipper_lib::export::build::build_export;
+use simple_clipper_lib::export::model::*;
+use simple_clipper_lib::export::run::{run_export, ExportHandle};
 
 const FRAME: f64 = 1.0 / 30.0;
 
@@ -172,7 +172,7 @@ fn unicode_path() {
     }
     let dir = tempfile::tempdir().unwrap();
     let a = common::make_clip(dir.path(), "it's clip ä.mp4", 1.0, 320, 240, 30, true);
-    let info = easy_clipper_lib::media::probe::probe(&a).unwrap();
+    let info = simple_clipper_lib::media::probe::probe(&a).unwrap();
     assert!(info.has_audio);
     let p = project(320, 240, vec![media("A", &a, 1.0, 320, 240, true)], pair("A", 0.0, 0.2, 1.0));
     let out = export(&p, &settings(Format::Mp4, &dir.path().join("out ä's.mp4"))).unwrap();

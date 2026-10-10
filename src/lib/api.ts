@@ -94,12 +94,12 @@ export async function pickMediaFiles(): Promise<string[]> {
 }
 
 export async function pickProjectToOpen(): Promise<string | null> {
-  const res = await open({ multiple: false, filters: [{ name: 'Easy Clipper project', extensions: ['clipproj'] }] });
+  const res = await open({ multiple: false, filters: [{ name: 'Simple Clipper project', extensions: ['clipproj'] }] });
   return typeof res === 'string' ? res : null;
 }
 
 export async function pickProjectSavePath(): Promise<string | null> {
-  return save({ filters: [{ name: 'Easy Clipper project', extensions: ['clipproj'] }], defaultPath: 'Untitled.clipproj' });
+  return save({ filters: [{ name: 'Simple Clipper project', extensions: ['clipproj'] }], defaultPath: 'Untitled.clipproj' });
 }
 
 export async function pickExportPath(ext: string): Promise<string | null> {
@@ -112,5 +112,5 @@ export async function pickReplacementFile(name: string): Promise<string | null> 
 }
 
 export function askDiscardChanges(): Promise<boolean> {
-  return ask('You have unsaved changes. Discard them?', { title: 'Easy Clipper', kind: 'warning', okLabel: 'Discard', cancelLabel: 'Cancel' });
+  return ask('You have unsaved changes. Discard them?', { title: 'Simple Clipper', kind: 'warning', okLabel: 'Discard', cancelLabel: 'Cancel' });
 }

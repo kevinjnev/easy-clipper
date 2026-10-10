@@ -24,7 +24,7 @@ if ($UseInstalled) {
     exit 0
 }
 
-$Work = Join-Path ([IO.Path]::GetTempPath()) "easyclipper-ffmpeg-$([guid]::NewGuid())"
+$Work = Join-Path ([IO.Path]::GetTempPath()) "simpleclipper-ffmpeg-$([guid]::NewGuid())"
 New-Item -ItemType Directory $Work | Out-Null
 try {
     $Zip = Join-Path $Work 'ffmpeg.zip'

@@ -22,10 +22,10 @@ FFmpeg isn't installed.
 
 ```powershell
 .\scripts\fetch-ffmpeg.ps1   # downloads the pinned FFmpeg 7.1.1 build and checks its SHA-256
-.\scripts\package.ps1        # builds release\EasyClipper-<version>-win-x64.zip
+.\scripts\package.ps1        # builds release\SimpleClipper-<version>-win-x64.zip
 ```
 
-If you change the app icon, run `cargo clean -p easy-clipper --release --manifest-path src-tauri/Cargo.toml`
+If you change the app icon, run `cargo clean -p simple-clipper --release --manifest-path src-tauri/Cargo.toml`
 before packaging so the new icon gets built into the exe.
 
 ### Working on the UI in a browser
@@ -40,5 +40,5 @@ can work on the interface without launching the full app.
 
 ## License
 
-Easy Clipper is MIT licensed. See [LICENSE](LICENSE). The release zip includes FFmpeg, which is
+Simple Clipper is MIT licensed. See [LICENSE](LICENSE). The release zip includes FFmpeg, which is
 GPL licensed; see [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).

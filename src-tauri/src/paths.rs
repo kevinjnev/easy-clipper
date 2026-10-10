@@ -21,7 +21,7 @@ fn is_writable(dir: &Path) -> bool {
     ok
 }
 
-/// `<exe dir>/data` when writable (portable mode), else `%LOCALAPPDATA%\EasyClipper`.
+/// `<exe dir>/data` when writable (portable mode), else `%LOCALAPPDATA%\SimpleClipper`.
 pub fn data_dir() -> PathBuf {
     static DIR: OnceLock<PathBuf> = OnceLock::new();
     DIR.get_or_init(|| {
@@ -32,7 +32,7 @@ pub fn data_dir() -> PathBuf {
         let local = std::env::var_os("LOCALAPPDATA")
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir)
-            .join("EasyClipper");
+            .join("SimpleClipper");
         let _ = std::fs::create_dir_all(&local);
         local
     })
@@ -62,7 +62,7 @@ pub fn tool_path(name: &str) -> AppResult<PathBuf> {
         }
     }
     Err(AppError::new(format!(
-        "{file} was not found. Put ffmpeg.exe and ffprobe.exe in the same folder as EasyClipper.exe."
+        "{file} was not found. Put ffmpeg.exe and ffprobe.exe in the same folder as SimpleClipper.exe."
     )))
 }
 

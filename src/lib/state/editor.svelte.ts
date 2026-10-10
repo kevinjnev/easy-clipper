@@ -12,7 +12,7 @@ export interface Selection {
   mediaId: string | null;
 }
 
-const SHORTCUTS_KEY = 'easyclipper.showShortcuts';
+const SHORTCUTS_KEY = 'simpleclipper.showShortcuts';
 
 /** Per-user UI preferences; storage can be unavailable, so failures fall back to defaults. */
 function readSetting(key: string, fallback: string): string {

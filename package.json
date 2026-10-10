@@ -1,6 +1,6 @@
 {
-  "name": "easy-clipper",
-  "version": "0.1.0",
+  "name": "simple-clipper",
+  "version": "0.1.1",
   "description": "Fast, lightweight video clip editor",
   "type": "module",
   "scripts": {

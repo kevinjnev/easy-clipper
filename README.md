@@ -1,4 +1,4 @@
-Easy Clipper is a fast, simple way to cut and merge clips.
+Simple Clipper is a fast, simple way to cut and merge clips.
 
 ## Requirements
 1. Windows 11 or 10 with the Microsoft Edge Webview2 runtime installed.
@@ -13,10 +13,10 @@ Easy Clipper is a fast, simple way to cut and merge clips.
 
 ## How To Download
 
-1. Download the latest `EasyClipper-<version>-win-x64.zip` from
-   [Releases](https://github.com/kevinjnev/easy-clipper/releases).
+1. Download the latest `SimpleClipper-<version>-win-x64.zip` from
+   [Releases](https://github.com/kevinjnev/simple-clipper/releases).
 2. Unzip it.
-3. Run `EasyClipper.exe`.
+3. Run `SimpleClipper.exe`.
 
 ## How to use it
 
@@ -24,7 +24,7 @@ Easy Clipper is a fast, simple way to cut and merge clips.
 2. Add them to the timeline and edit.
 3. Export with `Ctrl+E` or the button and choose a format and size.
 
-Projects save as `.clipproj` files. If you move your media around, Easy Clipper asks you to find the
+Projects save as `.clipproj` files. If you move your media around, Simple Clipper asks you to find the
 missing files when you open the project, and picks up any others in the same folder automatically.
 
 ### Keyboard shortcuts
@@ -56,5 +56,5 @@ Press `?` in the app to show or hide the shortcuts panel.
 
 ## License
 
-Easy Clipper is MIT licensed. See [LICENSE](LICENSE). The release zip includes FFmpeg, which is
+Simple Clipper is MIT licensed. See [LICENSE](LICENSE). The release zip includes FFmpeg, which is
 GPL licensed; see [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).

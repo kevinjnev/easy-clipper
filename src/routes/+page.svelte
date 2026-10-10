@@ -179,7 +179,7 @@
     <div class="modal">
       <h3>FFmpeg is missing</h3>
       <p>{ffmpegError}</p>
-      <p class="muted">Easy Clipper uses FFmpeg to read and export video. The download zip includes it — make sure <code>ffmpeg.exe</code> and <code>ffprobe.exe</code> are in the same folder as <code>EasyClipper.exe</code>, then restart.</p>
+      <p class="muted">Simple Clipper uses FFmpeg to read and export video. The download zip includes it — make sure <code>ffmpeg.exe</code> and <code>ffprobe.exe</code> are in the same folder as <code>SimpleClipper.exe</code>, then restart.</p>
     </div>
   </div>
 {/if}

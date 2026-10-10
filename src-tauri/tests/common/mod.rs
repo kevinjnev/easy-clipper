@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub fn have_ffmpeg() -> bool {
-    let ok = easy_clipper_lib::paths::tool_path("ffmpeg").is_ok() && easy_clipper_lib::paths::tool_path("ffprobe").is_ok();
+    let ok = simple_clipper_lib::paths::tool_path("ffmpeg").is_ok() && simple_clipper_lib::paths::tool_path("ffprobe").is_ok();
     if !ok {
         eprintln!("skipping: ffmpeg/ffprobe not found");
     }
