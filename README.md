@@ -1,42 +1,57 @@
-# Easy Clipper
+<p align="center">
+  <img src="src-tauri/app-icon.png" alt="Easy Clipper logo" width="112">
+</p>
 
-A fast, lightweight, portable video clip editor for Windows. Trim, split and stitch clips on a
-timeline, then export to MP4, GIF or audio. Think Clipchamp's basic editing, without the wait.
+<h1 align="center">Easy Clipper</h1>
 
-- **Portable** — unzip and run. No installer, no admin rights. ~8 MB app plus FFmpeg.
-- **Separate video and audio tracks** — linked by default, unlink with `Ctrl+L` to edit them independently.
-- **Frame-accurate trimming** — drag clip edges, or select an edge and nudge it one frame at a time with the arrow keys.
-- **Split, delete, move** — clips go exactly where you drop them (gaps allowed); dropping onto another clip
-  goes to the nearest gap on that track and pushes only the clips in the way (gaps absorb the push).
-  Edges snap when dragged within a few frames.
-- **Preview zoom** — Ctrl+Scroll to zoom the preview, Ctrl+drag to look around.
-- **Smooth preview** — playback follows the video itself; very large, high-frame-rate or high-bitrate
-  files automatically get a light 720p preview copy (exports still use the originals).
-- **Export** — MP4 (H.264/AAC, GPU-accelerated on NVIDIA/AMD/Intel when available), GIF, MP3, WAV;
-  Source / 1080p / 720p / 480p / custom resolution. Nothing is re-encoded until you export, and your
-  original files are never modified.
+<p align="center">A fast, portable video clip editor for Windows.</p>
 
-## Download and run
+---
 
-1. Download `EasyClipper-<version>-win-x64.zip` from [Releases](https://github.com/kevinjnev/easy-clipper/releases).
-2. Unzip anywhere (a USB stick works too).
+I built Easy Clipper because I was tired of waiting on Clipchamp every time I wanted to cut a clip.
+Most of the time I just want to trim something, maybe stitch a couple of clips together, and export
+an MP4 or a GIF. Easy Clipper does exactly that, and it opens instantly.
+
+It's a single portable folder: unzip it and run it. No installer, no account, no admin rights.
+
+## Features
+
+- **Timeline editing.** Separate video and audio tracks, linked by default. Unlink them to move or
+  trim audio on its own, and link any video and audio clip back together with `Ctrl+L`.
+- **Frame-accurate trimming.** Drag a clip's edge, or select an edge and nudge it one frame at a time
+  with the arrow keys.
+- **Split, delete and move.** Clips land exactly where you drop them, gaps included. Drop a clip onto
+  another one and it slots into the nearest gap, pushing only what's in the way. Edges snap when
+  you drag within a few frames of another clip or the playhead.
+- **Right-click menu** on the timeline for splitting, deleting and linking.
+- **Smooth preview.** Zoom in on the preview to check details. Very large, high-frame-rate or
+  high-bitrate files get a lightweight preview copy automatically, so playback stays smooth.
+- **Export** to MP4, GIF, MP3 or WAV at source, 1080p, 720p, 480p or a custom size. MP4 exports use
+  your GPU (NVIDIA, AMD or Intel) when one is available.
+- **Non-destructive.** Your original files are never touched, and nothing is re-encoded until you export.
+
+## Getting started
+
+1. Download the latest `EasyClipper-<version>-win-x64.zip` from
+   [Releases](https://github.com/kevinjnev/easy-clipper/releases), or build it yourself (see below).
+2. Unzip it anywhere. A USB stick works too.
 3. Run `EasyClipper.exe`.
 
-Requires Windows 10/11 with the Microsoft Edge WebView2 runtime (preinstalled on Windows 11 and current Windows 10).
-Cache files and logs are kept in a `data` folder next to the exe (or `%LOCALAPPDATA%\EasyClipper` if that folder isn't writable).
+Easy Clipper runs on Windows 10 and 11 and uses the Microsoft Edge WebView2 runtime, which comes
+with Windows 11 and current versions of Windows 10. Its cache and logs live in a `data` folder next
+to the exe, or in `%LOCALAPPDATA%\EasyClipper` if that folder isn't writable.
 
-## Using it
+## How to use it
 
-1. **Import** media (button or drag files onto the window).
-2. Double-click a file in the media bin (or select it and press `Enter`) to add it to the end of the timeline,
-   or drag it onto the timeline to insert it between clips.
-3. Trim by dragging clip edges, split with `S`, delete with `Delete`, drag clips to move them.
-   To link a video and an audio clip, click one, Ctrl+click the other and press `Ctrl+L`.
-   Right-click a clip for Split here / Split at playhead / Delete / Link or Unlink.
-4. **Export** (`Ctrl+E`) and choose a format and resolution.
+1. **Import** your clips with the Import button, or drag files onto the window.
+2. **Add them to the timeline.** Double-click a clip in the media bin (or select it and press
+   `Enter`) to add it to the end, or drag it to exactly where you want it.
+3. **Edit.** Drag clip edges to trim, press `S` to split at the playhead, and `Delete` to remove
+   clips. Right-click a clip for more options.
+4. **Export** with `Ctrl+E` and choose a format and size.
 
-Projects save as `.clipproj` files. If media files have moved when you open a project, Easy Clipper asks
-you to locate them (and finds others in the same folder automatically).
+Projects save as `.clipproj` files. If you move your media around, Easy Clipper asks you to find the
+missing files when you open the project, and picks up any others in the same folder automatically.
 
 ### Keyboard shortcuts
 
@@ -45,54 +60,63 @@ Press `?` in the app to show or hide the shortcuts panel.
 | Keys | Action |
 |---|---|
 | `Space` | Play / pause |
-| `←` / `→` | Previous / next frame — or move the selected clip edge by one frame |
-| `Shift+←` / `Shift+→` | 10 frames |
-| `[` / `]` | Select the left / right edge of the selected clip (or the clip under the playhead) |
-| `Home` / `End` | Go to start / end |
-| `S` | Split at the playhead (selected clips, or everything under the playhead) |
+| `←` / `→` | Previous / next frame, or nudge the selected clip edge one frame |
+| `Shift+←` / `Shift+→` | Jump 10 frames |
+| `[` / `]` | Select the left / right edge of a clip |
+| `Home` / `End` | Go to the start / last frame of the selected clips (or the whole timeline) |
+| `S` | Split at the playhead |
 | `Delete` | Delete selected clips |
 | `Ctrl+L` | Link / unlink video and audio |
-| `Enter` | Add the selected media to the end |
+| `Enter` | Add the selected media to the end of the timeline |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
-| `Ctrl+S` / `Ctrl+O` | Save / open project |
+| `Ctrl+S` / `Ctrl+O` | Save / open a project |
 | `Ctrl+E` | Export |
-| `Ctrl+Scroll` | Zoom the timeline or the preview (whichever is under the cursor) |
+| `Ctrl+Scroll` | Zoom the timeline or the preview, whichever is under the cursor |
 | `Scroll` | Scroll the timeline |
-| `Ctrl+drag` on the preview | Move around while zoomed in |
-| `Alt` while dragging | Disable snapping |
+| `Ctrl+drag` on the preview | Look around while zoomed in |
+| `Alt` while dragging | Turn off snapping |
 
 ## Building from source
 
-Requirements: Node.js 20+, Rust (stable, MSVC toolchain + Visual Studio C++ Build Tools), FFmpeg on `PATH` for development.
+You'll need Node.js 20+, Rust (stable, with the MSVC toolchain and the Visual Studio C++ Build Tools),
+and FFmpeg on your `PATH`.
 
 ```bash
 npm install
 npm run tauri dev
 ```
 
-Tests:
+Run the tests with:
 
 ```bash
 npm test
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-The Rust integration tests generate small clips with FFmpeg and run real exports (they're skipped if FFmpeg isn't found).
+The Rust integration tests generate small clips with FFmpeg and run real exports. They're skipped if
+FFmpeg isn't installed.
 
-### Packaging the portable zip
+### Making the portable zip
 
 ```powershell
-.\scripts\fetch-ffmpeg.ps1   # downloads the pinned FFmpeg 7.1.1 build and verifies its SHA-256
+.\scripts\fetch-ffmpeg.ps1   # downloads the pinned FFmpeg 7.1.1 build and checks its SHA-256
 .\scripts\package.ps1        # builds release\EasyClipper-<version>-win-x64.zip
 ```
 
-### UI development in a browser
+If you change the app icon, run `cargo clean -p easy-clipper --release --manifest-path src-tauri/Cargo.toml`
+before packaging so the new icon gets built into the exe.
 
-`node scripts/dev-media.mjs` generates sample clips into `static/dev-media/`. Then `npm run dev` and open
-http://localhost:1420 in a normal browser: a dev-only harness fakes the Rust side so the UI can be tried
-without Tauri. The editor is available as `window.__editor` in the console.
+### Working on the UI in a browser
+
+Run `node scripts/dev-media.mjs` to generate some sample clips, then `npm run dev` and open
+http://localhost:1420. In a normal browser, a development-only stand-in replaces the Rust side, so you
+can work on the interface without launching the full app.
+
+## Built with
+
+[Tauri](https://tauri.app), [Svelte](https://svelte.dev), Rust and [FFmpeg](https://ffmpeg.org).
 
 ## License
 
-MIT — see [LICENSE](LICENSE). The release zip bundles FFmpeg, which is GPL-licensed; see
-[THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).
+Easy Clipper is MIT licensed. See [LICENSE](LICENSE). The release zip includes FFmpeg, which is
+GPL licensed; see [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).
