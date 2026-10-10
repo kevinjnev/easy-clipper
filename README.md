@@ -14,7 +14,7 @@ Easy Clipper is a fast, simple way to cut and merge clips.
 ## How To Download
 
 1. Download the latest `EasyClipper-<version>-win-x64.zip` from
-   [Releases](https://github.com/kevinjnev/easy-clipper/releases), or build it yourself (see below).
+   [Releases](https://github.com/kevinjnev/easy-clipper/releases).
 2. Unzip it.
 3. Run `EasyClipper.exe`.
 
